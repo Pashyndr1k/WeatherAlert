@@ -51,7 +51,7 @@ button { cursor: pointer; background: none; border: none; padding: 0; white-spac
 .provider-pick { position: relative; cursor: pointer; padding: 6px 8px; margin: -6px -8px; border: 1px solid transparent; -webkit-app-region: no-drag; }
 .provider-pick:hover, .provider-pick:focus-visible { border-color: var(--line-2); color: var(--text); }
 .provider-pick .caret { color: var(--text-4); font-size: 9px; }
-.provider-menu { position: absolute; left: 0; top: calc(100% + 6px); min-width: 240px; background: var(--bg); border: 1px solid var(--line-2); display: flex; flex-direction: column; z-index: 30; cursor: default; }
+.provider-menu { position: fixed; min-width: 240px; background: var(--bg); border: 1px solid var(--line-2); display: flex; flex-direction: column; z-index: 70; cursor: default; -webkit-app-region: no-drag; }
 .pm-item { padding: 9px 12px; font-size: 11px; letter-spacing: .1em; color: var(--text-2); text-align: left; border-left: 2px solid transparent; }
 .pm-item:hover { background: var(--tint-g05); color: var(--text); }
 .pm-item.active { color: var(--text-bright); border-left-color: var(--accent); background: var(--tint-r08); }

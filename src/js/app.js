@@ -771,7 +771,13 @@
     state.s.provider = o.provider; state.s.sgSource = o.source; save();
     if (changed) { state.forecasts = {}; state.quota = null; renderStatus(); renderSelected(); toast(t('provider_switched', { p: o.label }), 'ok'); refresh('auto'); }
   }
-  $('pillProvider').addEventListener('click', (ev) => { ev.stopPropagation(); renderProviderMenu(); const m = $('providerMenu'); m.hidden = !m.hidden; });
+  $('pillProvider').addEventListener('click', (ev) => {
+    ev.stopPropagation(); renderProviderMenu();
+    const m = $('providerMenu'), r = $('pillProvider').getBoundingClientRect();
+    m.style.left = `${Math.round(r.left)}px`; m.style.top = `${Math.round(r.bottom + 6)}px`;
+    m.hidden = !m.hidden;
+  });
+  $('providerMenu').addEventListener('click', (ev) => ev.stopPropagation());
   $('pillProvider').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); $('pillProvider').click(); } });
   document.addEventListener('click', () => { $('providerMenu').hidden = true; });
 
