@@ -94,8 +94,16 @@
     { id: 'd_pressureTendency', label: 'Pressure tendency (3 h)', group: 'Derived (maritime)', kind: 'ptend', def: true, threshold: true, icon: 'baro', needs: ['pressure'] },
     { id: 'd_crossSea', label: 'Cross-sea', group: 'Derived (maritime)', kind: 'text', def: false, icon: 'wave', needs: ['swellDirection', 'windWaveDirection'] },
     { id: 'd_fogRisk', label: 'Fog risk', group: 'Derived (maritime)', kind: 'text', def: false, icon: 'fog', needs: ['airTemperature', 'dewPointTemperature'] },
-    { id: 'd_gustFactor', label: 'Gust factor', group: 'Derived (maritime)', kind: 'ratio', def: false, icon: 'gust', needs: ['windSpeed', 'gust'] }
+    { id: 'd_gustFactor', label: 'Gust factor', group: 'Derived (maritime)', kind: 'ratio', def: false, threshold: true, icon: 'gust', needs: ['windSpeed', 'gust'] },
+    { id: 'd_icing', label: 'Icing index (Overland)', group: 'Derived (maritime)', kind: 'icing', def: true, threshold: true, icon: 'ice', needs: ['airTemperature', 'waterTemperature', 'windSpeed'] },
+    { id: 'd_advFog', label: 'Advection-fog probability', group: 'Derived (maritime)', kind: 'pct', def: true, threshold: true, icon: 'fog', needs: ['waterTemperature', 'dewPointTemperature', 'windSpeed', 'humidity'] }
   ];
+  // Short uppercase labels for the bottom metric strip
+  const SHORT = { windSpeed: 'WIND 10M', gust: 'GUST', windDirection: 'WIND DIR', waveHeight: 'WAVE HS', wavePeriod: 'WAVE TP', waveDirection: 'WAVE DIR',
+    swellHeight: 'SWELL', swellPeriod: 'SWELL TP', swellDirection: 'SWELL DIR', windWaveHeight: 'WIND WAVE', pressure: 'PRESSURE', airTemperature: 'AIR TEMP',
+    waterTemperature: 'WATER', dewPointTemperature: 'DEW POINT', humidity: 'HUMIDITY', cloudCover: 'CLOUD', visibility: 'VISIBILITY', precipitation: 'PRECIP',
+    currentSpeed: 'CURRENT', currentDirection: 'CURRENT DIR', d_beaufort: 'BEAUFORT', d_seaState: 'SEA STATE', d_cloudCondition: 'SKY', d_airCondition: 'AIR COND',
+    d_pressureTendency: 'P TREND 3H', d_crossSea: 'CROSS SEA', d_fogRisk: 'FOG RISK', d_gustFactor: 'GUST FACTOR', d_icing: 'ICING', d_advFog: 'ADV FOG' };
 
   const byId = {};
   METRICS.forEach((m) => { byId[m.id] = m; });
@@ -107,5 +115,5 @@
   // so asking for the useful set costs nothing extra and avoids re-fetching on toggles).
   const SG_CORE_PARAMS = METRICS.filter((m) => m.core).map((m) => m.id);
 
-  return { METRICS, DERIVED, METRIC_BY_ID: byId, GROUP_ORDER, SG_CORE_PARAMS };
+  return { METRICS, DERIVED, METRIC_BY_ID: byId, GROUP_ORDER, SG_CORE_PARAMS, SHORT };
 });

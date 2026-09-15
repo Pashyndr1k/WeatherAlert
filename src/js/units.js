@@ -21,6 +21,7 @@
     factor: { x: { label: '', f: (v) => v * 100, inv: (v) => v / 100 } },
     ptend: { hpa3h: { label: 'hPa/3h', f: (v) => v, inv: (v) => v } },
     ratio: { x: { label: '×', f: (v) => v, inv: (v) => v } },
+    icing: { cmh: { label: 'cm/h', f: (v) => v, inv: (v) => v } },
     text: { t: { label: '', f: (v) => v, inv: (v) => v } }
   };
   const DEFAULT_UNITS = { speed: 'kn', length: 'm', depth: 'm', temp: 'c', vis: 'nm' };
@@ -33,7 +34,7 @@
   function decimals(kind, value) {
     if (kind === 'pressure') return 1;
     if (kind === 'pct' || kind === 'dir' || kind === 'factor') return 0;
-    if (kind === 'temp' || kind === 'period' || kind === 'ptend' || kind === 'ratio') return 1;
+    if (kind === 'temp' || kind === 'period' || kind === 'ptend' || kind === 'ratio' || kind === 'icing') return 1;
     if (kind === 'vis') return Math.abs(value) < 10 ? 1 : 0;
     return Math.abs(value) < 10 ? 1 : 0;
   }
@@ -127,6 +128,48 @@
     return { name: 'No', angle: d };
   }
 
+  // ---------- Overland (1990) vessel-icing predictor ----------
+  // PPR = Va * (Tf - Ta) / (1 + 0.3 * (Tw - Tf)); Tf = -1.7 C (seawater freezing point).
+  // Icing rate (cm/h) from PPR via the Overland regression; classes: light < 0.7, moderate 0.7-2.0, heavy 2.0-4.0, extreme > 4.0 cm/h.
+  function icing(v, lat) {
+    if (!v) return null;
+    const Ta = v.airTemperature, Tw = v.waterTemperature, Va = v.windSpeed;
+    if (Ta === null || Ta === undefined || Tw === null || Tw === undefined || Va === null || Va === undefined) return null;
+    const Tf = -1.7;
+    const zone = lat !== undefined && lat !== null ? lat >= 55 : true;
+    if (Ta >= Tf) return { ppr: 0, rate: 0, cls: 'none', zone };
+    const ppr = Va * (Tf - Ta) / (1 + 0.3 * (Tw - Tf));
+    const rate = Math.max(0, 2.73e-2 * ppr + 2.91e-4 * ppr * ppr - 1.84e-6 * ppr * ppr * ppr);
+    const cls = ppr <= 0 ? 'none' : ppr < 22.4 ? 'light' : ppr < 53.3 ? 'moderate' : ppr < 83 ? 'heavy' : 'extreme';
+    return { ppr, rate, cls, zone };
+  }
+  // ---------- advection-fog probability ----------
+  // Warm, moist air (dew point Td) moving over water colder than Td is cooled below saturation.
+  // Score = f(Td - Tw) shaped by humidity and a wind window (2-8 m/s is the classic advection band).
+  function advectionFog(v) {
+    if (!v) return null;
+    const Td = v.dewPointTemperature, Tw = v.waterTemperature;
+    if (Td === null || Td === undefined || Tw === null || Tw === undefined) return null;
+    const rh = v.humidity, wind = v.windSpeed === null || v.windSpeed === undefined ? 4 : v.windSpeed;
+    const excess = Td - Tw;
+    let base = 0;
+    if (excess > -1) base = Math.min(1, (excess + 1) / 4) * 75;
+    let rhBoost = 0;
+    if (rh !== null && rh !== undefined) rhBoost = rh >= 97 ? 25 : rh >= 92 ? 15 : rh >= 85 ? 5 : rh < 70 ? -15 : 0;
+    const windF = wind < 1 ? 0.55 : wind <= 8 ? 1 : wind <= 12 ? 0.7 : wind <= 16 ? 0.4 : 0.2;
+    const p = Math.max(0, Math.min(100, (base + rhBoost) * windF));
+    const level = p >= 70 ? 'very high' : p >= 45 ? 'high' : p >= 20 ? 'moderate' : 'low';
+    return { p, excess, level };
+  }
+  // Numeric value of a thresholdable derived metric (alarm engine + cards)
+  function derivedValue(id, v, lat) {
+    if (id === 'd_icing') { const r = icing(v, lat); return r ? r.rate : null; }
+    if (id === 'd_advFog') { const r = advectionFog(v); return r ? r.p : null; }
+    if (id === 'd_gustFactor') return v && v.windSpeed && v.gust ? v.gust / Math.max(0.5, v.windSpeed) : null;
+    return null;
+  }
+  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'] };
+
   // ---------- coordinate parsing (WGS84 decimal, DDM or DMS) ----------
   function parseCoordPart(str, isLat) {
     const s = String(str).trim().toUpperCase();
@@ -171,5 +214,5 @@
     return `${String(d).padStart(3, '0')}°${m.toFixed(1).padStart(4, '0')}'${lon >= 0 ? 'E' : 'W'}`;
   }
 
-  WA.units = { UNITS, DEFAULT_UNITS, unitFor, fmt, compass, beaufort, seaState, cloudCondition, airCondition, fogRisk, crossSea, parseCoords, fmtLat, fmtLon, WMO };
+  WA.units = { UNITS, DEFAULT_UNITS, unitFor, fmt, compass, beaufort, seaState, cloudCondition, airCondition, fogRisk, crossSea, icing, advectionFog, derivedValue, DERIVED_NEEDS, parseCoords, fmtLat, fmtLon, WMO };
 })();

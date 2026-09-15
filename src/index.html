@@ -2,242 +2,249 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://api.stormglass.io; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://api.stormglass.io; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; script-src 'self'" />
   <title>WeatherAlert</title>
+  <link rel="stylesheet" href="../assets/fonts/fonts.css" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <div id="app">
+  <div id="app" data-view="home">
     <!-- ================= top bar ================= -->
     <header class="topbar">
       <div class="brand">
         <span class="brand-mark"></span>
-        <span class="brand-name">WeatherAlert</span>
-        <span class="brand-sub" id="brandSub">Maritime threshold watch</span>
+        <span class="brand-name">WEATHER<span class="accent">ALERT</span></span>
+        <span class="brand-sub" id="brandSub" data-i18n="brand_sub">MARITIME THRESHOLD WATCH</span>
+        <span class="crumb" id="crumb" hidden></span>
       </div>
-      <div class="topbar-center">
-        <div class="status-pill" id="pillProvider" title="Active data provider"><span class="dot"></span><span id="providerName">Open-Meteo</span></div>
-        <div class="status-pill" id="pillQuota" title="Provider request budget"><span id="quotaText">quota —</span></div>
-        <div class="status-pill" id="pillRefresh" title="Last successful refresh"><span id="refreshText">not yet refreshed</span></div>
+      <div class="topbar-center" id="topbarStatus">
+        <div class="status" id="pillProvider"><span class="dot"></span><span id="providerName">OPEN-METEO</span></div>
+        <div class="status" id="pillQuota"><span id="quotaText">—</span></div>
+        <div class="status" id="pillRefresh"><span id="refreshText">—</span></div>
       </div>
       <div class="topbar-right">
-        <div class="clock" id="clockUtc">--:-- UTC</div>
-        <button class="icon-btn" id="btnMute" title="Mute / unmute audible alerts"><span class="ico ico-sound"></span></button>
-        <button class="icon-btn" id="btnRefresh" title="Refresh now"><span class="ico ico-refresh"></span></button>
-        <button class="icon-btn" id="btnSettings" title="Settings"><span class="ico ico-gear"></span></button>
+        <div class="clock" id="clockUtc"><span id="clockHm">--:--</span><span class="sec" id="clockS">:--</span> <span class="utc">UTC</span></div>
+        <div class="tb-buttons" id="homeButtons">
+          <button class="sq-btn" id="btnMute" data-i18n="btn_snd" data-i18n-title="tip_mute">SND</button>
+          <button class="sq-btn" id="btnRefresh" data-i18n="btn_rfr" data-i18n-title="tip_refresh">RFR</button>
+          <button class="sq-btn" id="btnAlarmsView" data-i18n="btn_alm" data-i18n-title="tip_alarms">ALM</button>
+          <button class="sq-btn" id="btnSettings" data-i18n="btn_set" data-i18n-title="tip_settings">SET</button>
+        </div>
+        <div class="tb-buttons" id="settingsButtons" hidden>
+          <button class="lbl-btn" id="btnCancelSettings" data-i18n="btn_cancel">CANCEL</button>
+          <button class="lbl-btn solid" id="btnSaveSettings" data-i18n="btn_save">SAVE &amp; APPLY</button>
+        </div>
+        <div class="tb-buttons" id="alarmsButtons" hidden>
+          <button class="lbl-btn" id="btnBackHome">← MAP</button>
+        </div>
       </div>
     </header>
 
-    <!-- alarm banner -->
-    <div class="alarm-banner" id="alarmBanner" hidden>
-      <div class="alarm-banner-inner">
-        <span class="alarm-icon"></span>
-        <div class="alarm-text"><strong id="alarmTitle">Alarm</strong><span id="alarmBody"></span></div>
-        <button class="btn btn-ghost" id="btnAckAll">Acknowledge all</button>
-      </div>
-    </div>
-
-    <!-- ================= main ================= -->
-    <main class="main">
+    <!-- ================= HOME ================= -->
+    <main class="view view-home" id="viewHome">
       <section class="map-wrap">
         <div id="map" class="map"></div>
-        <div class="map-overlay top-left">
-          <div class="map-hint" id="mapHint">Click the map to add a tracking point</div>
-          <div class="coord-readout small"><span id="gridText">grid —</span> · <span id="lodText">coastline —</span></div>
+
+        <div class="alarm-banner" id="alarmBanner" hidden>
+          <span class="blink-sq"></span>
+          <span class="banner-level" id="alarmLevel">CRITICAL</span>
+          <span class="banner-body" id="alarmBody"></span>
+          <span class="banner-more" id="alarmMore"></span>
+          <button class="lbl-btn accent-border" id="btnAckAll" data-i18n="ack_all">ACKNOWLEDGE ALL</button>
         </div>
-        <div class="map-overlay bottom-left">
-          <div class="coord-readout" id="coordReadout">—</div>
+
+        <i class="bracket tl"></i><i class="bracket tr"></i><i class="bracket bl"></i><i class="bracket br"></i>
+
+        <div class="rail" id="rail">
+          <div class="rail-head"><span data-i18n="rail_title">TRACKING POINTS</span><span id="pointCount">00 / 10</span></div>
+          <div class="rail-list" id="pointList"></div>
+          <button class="rail-add" id="btnAddPoint" data-i18n="add_point">+ ADD POINT</button>
         </div>
-        <div class="map-overlay top-right">
-          <button class="icon-btn small" id="btnResetView" title="Reset view"><span class="ico ico-fit"></span></button>
-        </div>
-        <div class="map-overlay bottom-right">
+
+        <div class="map-hint" id="mapHint" data-i18n="hint_click">CLICK THE MAP TO ADD A TRACKING POINT</div>
+
+        <div class="readout">
+          <div id="readoutMeta">—</div>
+          <div class="readout-coords" id="coordReadout">—</div>
           <div class="legend">
-            <span><i class="lg lg-ok"></i>Normal</span>
-            <span><i class="lg lg-warn"></i>Threshold within lead time</span>
-            <span><i class="lg lg-crit"></i>Threshold exceeded</span>
+            <span><i class="sq normal"></i><span data-i18n="legend_normal">NORMAL</span></span>
+            <span><i class="sq warn"></i><span data-i18n="legend_warn">WITHIN LEAD</span></span>
+            <span><i class="sq crit"></i><span data-i18n="legend_crit">EXCEEDED</span></span>
           </div>
+          <span id="gridText" hidden></span><span id="lodText" hidden></span>
         </div>
       </section>
 
-      <aside class="panel">
-        <div class="panel-head">
-          <div class="panel-title">Tracking points <span class="count" id="pointCount">0 / 10</span></div>
-          <button class="btn btn-primary small" id="btnAddPoint">+ Add point</button>
-        </div>
-        <div class="point-list" id="pointList"></div>
-
-        <div class="selected-head" id="selectedHead" hidden>
+      <section class="strip" id="strip">
+        <div class="sel-cell" id="selCell">
           <div>
+            <div class="sel-state" id="selState" data-i18n="no_selection">NO POINT SELECTED</div>
             <div class="sel-name" id="selName">—</div>
-            <div class="sel-coords" id="selCoords">—</div>
+            <div class="sel-coords" id="selCoords"></div>
           </div>
-          <div class="sel-actions">
-            <button class="icon-btn small" id="btnFly" title="Centre map on this point"><span class="ico ico-target"></span></button>
-            <button class="icon-btn small danger" id="btnRemovePoint" title="Remove this point"><span class="ico ico-trash"></span></button>
+          <div class="sel-actions" id="selActions" hidden>
+            <button class="mini-btn" id="btnFly" data-i18n="centre">CENTRE</button>
+            <button class="mini-btn danger" id="btnRemovePoint" data-i18n="remove">REMOVE</button>
           </div>
         </div>
-
-        <div class="metrics-grid" id="metricsGrid"></div>
-
-        <div class="section-title" id="alarmListTitle">Active alarms</div>
-        <div class="alarm-list" id="alarmList"><div class="empty">No thresholds are close to being reached.</div></div>
-
-        <div class="empty-state" id="emptyState">
-          <div class="empty-art"></div>
-          <h3>No tracking points yet</h3>
-          <p>Add up to 10 WGS84 coordinates. Click anywhere on the map, or use <b>+ Add point</b>.</p>
-        </div>
-      </aside>
+        <div class="cards" id="metricsGrid"></div>
+      </section>
     </main>
 
-    <!-- ================= toast ================= -->
+    <!-- ================= ALARMS ================= -->
+    <main class="view view-alarms" id="viewAlarms" hidden>
+      <div class="alarms-left">
+        <div class="alarms-head">
+          <div class="alarms-count" id="alarmCount">00</div>
+          <div class="alarms-summary" id="alarmSummary"></div>
+          <button class="lbl-btn accent-border" id="btnAckAll2" data-i18n="ack_all">ACKNOWLEDGE ALL</button>
+        </div>
+        <div class="al-cols"><span data-i18n="col_level">LEVEL</span><span data-i18n="col_point">POINT · METRIC</span><span data-i18n="col_value">VALUE / LIMIT</span><span data-i18n="col_eta">ETA</span><span></span></div>
+        <div class="al-rows" id="alarmList"></div>
+      </div>
+      <div class="alarms-right">
+        <div class="tl-head" id="tlHead">TIMELINE</div>
+        <div class="tl-axis" id="tlAxis"></div>
+        <div class="note-box" data-i18n="engine_note"></div>
+      </div>
+    </main>
+
+    <!-- ================= SETTINGS ================= -->
+    <main class="view view-settings" id="viewSettings" hidden>
+      <nav class="tab-rail" id="settingsTabs">
+        <button class="tab active" data-tab="provider" data-i18n="tab_provider">PROVIDER</button>
+        <button class="tab" data-tab="map" data-i18n="tab_map">MAP</button>
+        <button class="tab" data-tab="metrics" data-i18n="tab_metrics">METRICS</button>
+        <button class="tab" data-tab="thresholds" data-i18n="tab_thresholds">THRESHOLDS</button>
+        <button class="tab" data-tab="alerts" data-i18n="tab_alerts">ALERTS &amp; UNITS</button>
+      </nav>
+      <div class="pane-wrap">
+        <!-- provider -->
+        <section class="tab-pane active" data-pane="provider">
+          <h1 class="pane-title" data-i18n="tab_provider">PROVIDER</h1>
+          <div class="field-row">
+            <label class="field"><span data-i18n="provider_label">DATA PROVIDER</span>
+              <select id="setProvider"><option value="openmeteo" data-i18n="prov_om"></option><option value="stormglass" data-i18n="prov_sg"></option></select>
+            </label>
+            <label class="field"><span data-i18n="refresh_label">REFRESH INTERVAL</span>
+              <select id="setRefresh">
+                <option value="15" data-i18n="refresh_15"></option><option value="30" data-i18n="refresh_30"></option><option value="60" data-i18n="refresh_60"></option>
+                <option value="180" data-i18n="refresh_180"></option><option value="360" data-i18n="refresh_360"></option><option value="720" data-i18n="refresh_720"></option>
+              </select>
+            </label>
+          </div>
+          <div id="sgFields" class="field-row">
+            <label class="field"><span data-i18n="apikey_label">STORMGLASS API KEY</span>
+              <input id="setApiKey" type="password" autocomplete="off" data-i18n-ph="apikey_ph" />
+              <small class="hint" data-i18n="apikey_hint"></small>
+            </label>
+            <label class="field"><span data-i18n="sgsource_label">STORMGLASS SOURCE</span>
+              <select id="setSgSource">
+                <option value="sg">sg — Stormglass AI blend</option><option value="ecmwf">ecmwf — ECMWF HRES + WAM</option><option value="noaa">noaa — GFS + GFS-Wave</option>
+                <option value="metno">metno — MET Norway</option><option value="meteo">meteo — Météo-France MFWAM</option><option value="dwd">dwd — DWD GWAM</option>
+                <option value="meto">meto — UK Met Office</option><option value="all">all sources</option>
+              </select>
+            </label>
+          </div>
+          <div class="note-box" id="budgetBox"></div>
+        </section>
+
+        <!-- map -->
+        <section class="tab-pane" data-pane="map">
+          <h1 class="pane-title" data-i18n="tab_map">MAP</h1>
+          <div class="field-row">
+            <label class="field"><span data-i18n="map_window">MAP WINDOW</span>
+              <select id="setRegion"><option value="blacksea" data-i18n="region_bs"></option><option value="eurasia" data-i18n="region_ea"></option></select>
+            </label>
+            <label class="field"><span data-i18n="projection">PROJECTION</span>
+              <select id="setProjection"><option value="mercator" data-i18n="proj_opt_merc"></option><option value="albers" data-i18n="proj_opt_albers"></option></select>
+            </label>
+          </div>
+          <div class="note-box" data-i18n="map_note"></div>
+        </section>
+
+        <!-- metrics -->
+        <section class="tab-pane" data-pane="metrics">
+          <h1 class="pane-title" data-i18n="tab_metrics">METRICS</h1>
+          <p class="pane-intro" data-i18n="metrics_intro"></p>
+          <div class="metric-picker" id="metricPicker"></div>
+        </section>
+
+        <!-- thresholds -->
+        <section class="tab-pane" data-pane="thresholds">
+          <h1 class="pane-title" data-i18n="tab_thresholds">THRESHOLDS</h1>
+          <p class="pane-intro" data-i18n="thresholds_intro"></p>
+          <div class="th-cols"><span data-i18n="col_on">ON</span><span data-i18n="col_metric">METRIC</span><span data-i18n="col_rule">RULE</span><span data-i18n="col_scope">SCOPE</span><span></span></div>
+          <div class="th-rows" id="thresholdList"></div>
+          <div class="th-add">
+            <label class="field"><span data-i18n="col_metric">METRIC</span><select id="thMetric"></select></label>
+            <label class="field"><span data-i18n="col_op">OP</span><select id="thOp"><option value="gte" data-i18n="op_gte"></option><option value="lte" data-i18n="op_lte"></option></select></label>
+            <label class="field"><span data-i18n="col_limit">LIMIT</span><input id="thValue" type="number" step="any" /></label>
+            <span class="th-unit" id="thUnit"></span>
+            <button class="lbl-btn light" id="btnAddThreshold" data-i18n="add_threshold">ADD THRESHOLD</button>
+          </div>
+        </section>
+
+        <!-- alerts & units -->
+        <section class="tab-pane" data-pane="alerts">
+          <h1 class="pane-title" data-i18n="tab_alerts">ALERTS &amp; UNITS</h1>
+          <div class="field-row">
+            <label class="field"><span data-i18n="lead_label">PRE-ALERT LEAD TIME</span>
+              <div class="range-row"><input id="setLead" type="range" min="60" max="90" step="5" /><output id="setLeadOut">90 MIN</output></div>
+              <small class="hint" data-i18n="lead_hint"></small>
+            </label>
+            <label class="field"><span data-i18n="volume_label">ALERT VOLUME</span>
+              <div class="range-row"><input id="setVolume" type="range" min="0" max="100" step="5" /><output id="setVolumeOut">60 %</output></div>
+            </label>
+          </div>
+          <div class="field-row checks">
+            <label class="check"><input type="checkbox" id="setSound" /><i></i><span data-i18n="opt_sound"></span></label>
+            <label class="check"><input type="checkbox" id="setNotify" /><i></i><span data-i18n="opt_notify"></span></label>
+            <label class="check"><input type="checkbox" id="setFlash" /><i></i><span data-i18n="opt_flash"></span></label>
+          </div>
+          <div class="field-row">
+            <button class="lbl-btn" id="btnTestWarn" data-i18n="test_warn">TEST WARNING SOUND</button>
+            <button class="lbl-btn" id="btnTestCrit" data-i18n="test_crit">TEST CRITICAL SOUND</button>
+          </div>
+          <h2 class="sub-h" data-i18n="units_title">UNITS</h2>
+          <div class="field-row">
+            <label class="field"><span data-i18n="unit_speed"></span><select id="unitSpeed"><option value="kn" data-i18n="u_kn"></option><option value="ms" data-i18n="u_ms"></option><option value="kmh" data-i18n="u_kmh"></option></select></label>
+            <label class="field"><span data-i18n="unit_height"></span><select id="unitLength"><option value="m" data-i18n="u_m"></option><option value="ft" data-i18n="u_ft"></option></select></label>
+            <label class="field"><span data-i18n="unit_temp"></span><select id="unitTemp"><option value="c">°C</option><option value="f">°F</option></select></label>
+            <label class="field"><span data-i18n="unit_vis"></span><select id="unitVis"><option value="nm" data-i18n="u_nm"></option><option value="km" data-i18n="u_km"></option></select></label>
+          </div>
+          <h2 class="sub-h" data-i18n="language_title">LANGUAGE</h2>
+          <div class="field-row">
+            <label class="field"><span data-i18n="language_title"></span><select id="setLang"><option value="en">English</option><option value="uk">Українська</option></select></label>
+          </div>
+        </section>
+      </div>
+    </main>
+
     <div class="toasts" id="toasts"></div>
 
     <!-- ================= Add point modal ================= -->
     <div class="modal" id="modalPoint" hidden>
       <div class="modal-card">
-        <div class="modal-head"><h2>Add tracking point</h2><button class="icon-btn small" data-close="modalPoint"><span class="ico ico-x"></span></button></div>
+        <div class="modal-head"><h2 data-i18n="add_title">ADD TRACKING POINT</h2><button class="sq-btn" data-close="modalPoint">×</button></div>
         <div class="modal-body">
-          <label class="field"><span>Name</span><input id="ptName" type="text" placeholder="e.g. Skagen approach" maxlength="28" /></label>
-          <label class="field"><span>Coordinates (WGS84)</span>
-            <input id="ptCoords" type="text" placeholder="57.72, 10.59  ·  57°43.2'N 010°35.4'E  ·  57 43 12 N 10 35 24 E" />
-            <small class="hint" id="ptCoordsHint">Decimal degrees, degrees-decimal-minutes, or DMS. Region: 30°W–180°E, 12°S–82°N.</small>
+          <label class="field"><span data-i18n="name_label">NAME</span><input id="ptName" type="text" maxlength="28" data-i18n-ph="name_ph" /></label>
+          <label class="field"><span data-i18n="coords_label">COORDINATES (WGS84)</span>
+            <input id="ptCoords" type="text" data-i18n-ph="coords_ph" />
+            <small class="hint" id="ptCoordsHint"></small>
           </label>
         </div>
-        <div class="modal-foot"><button class="btn" data-close="modalPoint">Cancel</button><button class="btn btn-primary" id="btnSavePoint">Add point</button></div>
-      </div>
-    </div>
-
-    <!-- ================= Settings modal ================= -->
-    <div class="modal" id="modalSettings" hidden>
-      <div class="modal-card wide">
-        <div class="modal-head"><h2>Settings</h2><button class="icon-btn small" data-close="modalSettings"><span class="ico ico-x"></span></button></div>
-        <div class="tabs" id="settingsTabs">
-          <button class="tab active" data-tab="provider">Provider</button>
-          <button class="tab" data-tab="map">Map</button>
-          <button class="tab" data-tab="metrics">Metrics</button>
-          <button class="tab" data-tab="thresholds">Thresholds</button>
-          <button class="tab" data-tab="alerts">Alerts &amp; units</button>
-        </div>
-        <div class="modal-body tall">
-          <!-- provider -->
-          <section class="tab-pane active" data-pane="provider">
-            <div class="field-row">
-              <label class="field"><span>Data provider</span>
-                <select id="setProvider">
-                  <option value="openmeteo">Open-Meteo (free, no key — ICON/GFS/ECMWF + MFWAM/EWAM waves)</option>
-                  <option value="stormglass">Stormglass.io (API key required)</option>
-                </select>
-              </label>
-              <label class="field"><span>Refresh interval</span>
-                <select id="setRefresh">
-                  <option value="15">Every 15 min</option><option value="30">Every 30 min</option><option value="60">Every hour</option>
-                  <option value="180">Every 3 h</option><option value="360">Every 6 h</option><option value="720">Every 12 h</option>
-                </select>
-              </label>
-            </div>
-            <div id="sgFields">
-              <label class="field"><span>Stormglass API key</span>
-                <input id="setApiKey" type="password" placeholder="paste key from dashboard.stormglass.io" autocomplete="off" />
-                <small class="hint">Stored encrypted with the OS keychain. Never leaves this machine except in the Authorization header to api.stormglass.io.</small>
-              </label>
-              <label class="field"><span>Stormglass source</span>
-                <select id="setSgSource">
-                  <option value="sg">sg — Stormglass AI blend (recommended)</option>
-                  <option value="ecmwf">ecmwf — ECMWF HRES + WAM</option>
-                  <option value="noaa">noaa — GFS + GFS-Wave</option>
-                  <option value="metno">metno — MET Norway (Nordic seas)</option>
-                  <option value="meteo">meteo — Météo-France MFWAM</option>
-                  <option value="dwd">dwd — DWD GWAM</option>
-                  <option value="meto">meto — UK Met Office</option>
-                  <option value="all">all sources (best available per parameter)</option>
-                </select>
-              </label>
-            </div>
-            <div class="budget-box" id="budgetBox"></div>
-          </section>
-
-          <!-- map -->
-          <section class="tab-pane" data-pane="map">
-            <div class="field-row">
-              <label class="field"><span>Map window</span>
-                <select id="setRegion">
-                  <option value="blacksea">Black Sea &amp; Sea of Azov — GSHHG shoreline, 5 levels of detail</option>
-                  <option value="eurasia">Europe &amp; Asia — Natural Earth 50 m overview</option>
-                </select>
-              </label>
-              <label class="field"><span>Projection</span>
-                <select id="setProjection">
-                  <option value="mercator">Mercator (nautical chart)</option>
-                  <option value="albers">Albers equal-area conic, SP 46°15'N / 41°15'N (as reference chart)</option>
-                </select>
-              </label>
-            </div>
-            <div class="budget-box">
-              <b>Black Sea shoreline:</b> GSHHG v2.3.7 (NOAA / University of Hawaii), WGS84. Detail switches automatically with zoom: intermediate → high → full (≈ 100 m). Lakes, rivers and national borders from WDBII. The lat/lon grid steps 10° → 5° → 2° → 1° → 30' → 10' → 5' as you zoom; edge labels show the current lines. Click anywhere on the map to add a point at that exact position.
-            </div>
-          </section>
-
-          <!-- metrics -->
-          <section class="tab-pane" data-pane="metrics">
-            <p class="pane-intro">Every parameter offered by the Stormglass weather endpoint, plus locally derived maritime indicators. Tick what you want on the main screen. Greyed items are not provided by the active provider.</p>
-            <div class="metric-picker" id="metricPicker"></div>
-          </section>
-
-          <!-- thresholds -->
-          <section class="tab-pane" data-pane="thresholds">
-            <p class="pane-intro">An alarm sounds when a metric is forecast to cross its limit within the lead time, and escalates when it is actually exceeded. Values are in your display units.</p>
-            <div class="threshold-list" id="thresholdList"></div>
-            <div class="threshold-add">
-              <select id="thMetric"></select>
-              <select id="thOp"><option value="gte">≥ rises to</option><option value="lte">≤ falls to</option></select>
-              <input id="thValue" type="number" step="any" placeholder="limit" />
-              <span class="th-unit" id="thUnit"></span>
-              <button class="btn btn-primary small" id="btnAddThreshold">Add threshold</button>
-            </div>
-          </section>
-
-          <!-- alerts & units -->
-          <section class="tab-pane" data-pane="alerts">
-            <div class="field-row">
-              <label class="field"><span>Pre-alert lead time</span>
-                <div class="range-row"><input id="setLead" type="range" min="60" max="90" step="5" /><output id="setLeadOut">90 min</output></div>
-                <small class="hint">The alarm is raised as soon as a crossing is forecast within this window, and repeated at 60 min.</small>
-              </label>
-              <label class="field"><span>Alert volume</span>
-                <div class="range-row"><input id="setVolume" type="range" min="0" max="100" step="5" /><output id="setVolumeOut">60 %</output></div>
-              </label>
-            </div>
-            <div class="field-row">
-              <label class="check"><input type="checkbox" id="setSound" /> Audible alerts</label>
-              <label class="check"><input type="checkbox" id="setNotify" /> System notifications</label>
-              <label class="check"><input type="checkbox" id="setFlash" /> Flash taskbar / dock</label>
-            </div>
-            <div class="field-row">
-              <button class="btn small" id="btnTestWarn">Test warning sound</button>
-              <button class="btn small" id="btnTestCrit">Test critical sound</button>
-            </div>
-            <h3 class="sub-h">Units</h3>
-            <div class="field-row">
-              <label class="field"><span>Wind &amp; current speed</span><select id="unitSpeed"><option value="kn">knots</option><option value="ms">m/s</option><option value="kmh">km/h</option></select></label>
-              <label class="field"><span>Heights</span><select id="unitLength"><option value="m">metres</option><option value="ft">feet</option></select></label>
-              <label class="field"><span>Temperature</span><select id="unitTemp"><option value="c">°C</option><option value="f">°F</option></select></label>
-              <label class="field"><span>Visibility</span><select id="unitVis"><option value="nm">nautical miles</option><option value="km">kilometres</option></select></label>
-            </div>
-          </section>
-        </div>
-        <div class="modal-foot"><span class="foot-note" id="settingsNote"></span><button class="btn btn-primary" id="btnSaveSettings">Save &amp; apply</button></div>
+        <div class="modal-foot"><button class="lbl-btn" data-close="modalPoint" data-i18n="cancel">CANCEL</button><button class="lbl-btn solid" id="btnSavePoint" data-i18n="add_btn">ADD POINT</button></div>
       </div>
     </div>
   </div>
 
-  <!-- libraries (bundled from node_modules, work offline) -->
   <script src="../node_modules/d3/dist/d3.min.js"></script>
   <script src="../node_modules/topojson-client/dist/topojson-client.min.js"></script>
   <script src="metrics.js"></script>
   <script src="providers.js"></script>
   <script src="dev-shim.js"></script>
+  <script src="js/i18n.js"></script>
   <script src="js/units.js"></script>
   <script src="js/alarms.js"></script>
   <script src="js/audio.js"></script>
