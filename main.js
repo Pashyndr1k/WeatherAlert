@@ -129,6 +129,8 @@ ipcMain.handle('map:load', (_e, dataset, res) => {
   if (dataset === 'gshhg') {
     if (!/^[clihf]$/.test(String(res))) throw new Error('bad resolution');
     p = path.join(__dirname, 'assets', 'blacksea', `blacksea_${res}.json`);
+  } else if (dataset === 'depth') {
+    p = path.join(__dirname, 'assets', 'blacksea', 'depth.json');
   } else {
     p = path.join(__dirname, 'node_modules', 'world-atlas', 'countries-50m.json');
   }
@@ -142,6 +144,8 @@ ipcMain.handle('weather:fetch', async (_e, points, opts) => {
   const apiKey = provider === 'stormglass' ? loadApiKey() : '';
   return providers.fetchAll(provider, points, { ...opts, apiKey, httpGetJson });
 });
+
+ipcMain.handle('currents:fetch', async (_e, points) => providers.fetchCurrents(points, { httpGetJson }));
 
 ipcMain.handle('notify', (_e, { title, body, urgent }) => {
   if (!Notification.isSupported()) return false;

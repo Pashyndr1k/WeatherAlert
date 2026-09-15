@@ -55,6 +55,7 @@ async function fetchOpenMeteo(points, { httpGetJson, hours = 72 }) {
         if (val !== null) {
           if (met.om === 'visibility') val = val / 1000; // m → km
           if (met.om === 'snowfall') val = val * 10; // cm/h → mm/h (water-equivalent approx.)
+          if (met.om === 'ocean_current_velocity') val = val / 3.6; // km/h → m/s (marine API default unit)
         }
         v[met.id] = val;
       });
@@ -98,6 +99,8 @@ async function fetchStormglass(points, { httpGetJson, apiKey, params, hours = 72
     const hoursOut = (r.json.hours || []).map((h) => {
       const v = {};
       want.forEach((id) => { v[id] = pickSource(h[id]); });
+      // Stormglass gives current direction as "coming from"; canonical is oceanographic "flowing towards"
+      if (v.currentDirection !== null && v.currentDirection !== undefined) v.currentDirection = (v.currentDirection + 180) % 360;
       return { t: Date.parse(h.time), v };
     });
     lastMeta = r.json.meta || null;
@@ -112,10 +115,31 @@ async function fetchStormglass(points, { httpGetJson, apiKey, params, hours = 72
   return out;
 }
 
+// Surface-current grid for the map overlay (Open-Meteo marine model, any provider setting).
+// points: [{lat, lon}] → [{lat, lon, hours: [{t, speed(m/s), dir(towards °)}]}]; land points come back with empty hours.
+async function fetchCurrents(points, { httpGetJson }) {
+  const out = [];
+  for (let i = 0; i < points.length; i += 100) {
+    const chunk = points.slice(i, i + 100);
+    const url = `${OM_MARINE}?latitude=${chunk.map((q) => q.lat.toFixed(3)).join(',')}&longitude=${chunk.map((q) => q.lon.toFixed(3)).join(',')}` +
+      `&hourly=ocean_current_velocity,ocean_current_direction&timezone=UTC&forecast_days=2&timeformat=unixtime`;
+    const r = await httpGetJson(url);
+    if (r.status !== 200 || !r.json) throw new Error(`Open-Meteo marine HTTP ${r.status}`);
+    const arr = Array.isArray(r.json) ? r.json : [r.json];
+    chunk.forEach((q, k) => {
+      const h = arr[k] && arr[k].hourly;
+      const hours = [];
+      if (h && h.time) h.time.forEach((t, j) => { const s = h.ocean_current_velocity[j], dir = h.ocean_current_direction[j]; if (s !== null && dir !== null) hours.push({ t: t * 1000, speed: s / 3.6, dir }); });
+      out.push({ lat: q.lat, lon: q.lon, hours });
+    });
+  }
+  return out;
+}
+
 async function fetchAll(provider, points, opts) {
   if (provider === 'stormglass') return fetchStormglass(points, opts);
   return fetchOpenMeteo(points, opts);
 }
 
-return { fetchAll, fetchOpenMeteo, fetchStormglass };
+return { fetchAll, fetchOpenMeteo, fetchStormglass, fetchCurrents };
 });

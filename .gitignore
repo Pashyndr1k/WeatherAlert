@@ -7,3 +7,4 @@ docs/report.html
 *.log
 .DS_Store
 Thumbs.db
+tools/depth/*.json

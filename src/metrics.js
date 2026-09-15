@@ -79,7 +79,7 @@
     M('waterTemperature', 'Water temperature', 'Ocean', 'temp', 'sea_surface_temperature', { core: true }),
     M('surfaceTemperature', 'Surface temperature', 'Ocean', 'temp', null),
     M('currentSpeed', 'Current speed', 'Ocean', 'speed', 'ocean_current_velocity', { core: true }),
-    M('currentDirection', 'Current direction', 'Ocean', 'dir', 'ocean_current_direction', { core: true }),
+    M('currentDirection', 'Current direction (towards)', 'Ocean', 'dir', 'ocean_current_direction', { core: true }),
     M('seaLevel', 'Sea level (rel. MSL)', 'Ocean', 'length', 'sea_level_height_msl'),
     M('iceCover', 'Ice cover', 'Ocean', 'factor', null),
     M('seaIceThickness', 'Sea-ice thickness', 'Ocean', 'depth', null)

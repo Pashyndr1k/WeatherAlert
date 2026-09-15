@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'strip',
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'strip', layers: { depth: true, currents: true },
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -32,7 +32,8 @@
   const state = {
     s: defaultSettings(), forecasts: {}, selectedId: null, alarms: [], acked: new Set(), ackedAt: {}, seen: new Set(), reminded: new Set(),
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
-    crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() }
+    crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
+    currents: { grid: null, fetchedAt: 0, busy: false }
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -41,7 +42,7 @@
     const saved = await window.bridge.getSettings();
     if (saved) {
       const d = defaultSettings();
-      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) } };
+      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) } };
       // make sure the new default indicators appear for existing installs
       ['d_icing', 'd_advFog'].forEach((id) => { if (!saved.display) return; if (!state.s.display.includes(id) && saved.display.length && !saved.seenIndicators) state.s.display.push(id); });
       state.s.seenIndicators = true;
@@ -97,7 +98,6 @@
     $('viewHome').hidden = v !== 'home'; $('viewAlarms').hidden = v !== 'alarms'; $('viewSettings').hidden = v !== 'settings'; $('viewGuide').hidden = v !== 'guide';
     $('homeButtons').hidden = v !== 'home'; $('settingsButtons').hidden = v !== 'settings'; $('alarmsButtons').hidden = v !== 'alarms'; $('guideButtons').hidden = v !== 'guide';
     $('topbarStatus').hidden = v !== 'home';
-    $('brandSub').hidden = v !== 'home';
     $('crumb').hidden = v === 'home';
     $('crumb').textContent = v === 'alarms' ? t('crumb_alarms') : v === 'settings' ? t('crumb_settings') : v === 'guide' ? t('crumb_guide') : '';
     if (v === 'alarms') renderAlarmsView();
@@ -142,7 +142,7 @@
     clearInterval(refreshTimer);
     refreshTimer = setInterval(() => refresh('auto'), Math.max(5, state.s.refreshMin) * 60e3);
     clearInterval(evalTimer);
-    evalTimer = setInterval(() => { evaluateAlarms(); renderAlarms(); renderMapStates(); applyCardStates(); renderPoints(); }, 30e3);
+    evalTimer = setInterval(() => { evaluateAlarms(); renderAlarms(); renderMapStates(); applyCardStates(); renderPoints(); if (state.s.layers.currents) refreshCurrents(); }, 30e3);
   }
 
   // ------------------------------------------------------------------ alarms
@@ -206,10 +206,12 @@
       const lvl = pointLevel(p.id);
       const el = document.createElement('div');
       el.className = `rail-row ${lvl} ${p.id === state.selectedId ? 'active' : ''}`;
-      el.innerHTML = `<span class="nm"></span><span class="st"></span>`;
+      el.innerHTML = `<span class="nm"></span><span class="st"></span><button class="rm" type="button" title="${t('remove_point_tip')}">×</button>`;
       el.querySelector('.nm').textContent = `${pad2(i + 1)} ${p.name}`;
       el.querySelector('.st').textContent = lvl === 'critical' ? t('st_crit') : lvl === 'warning' ? t('st_warn') : t('st_ok');
       el.addEventListener('click', () => select(p.id));
+      el.addEventListener('dblclick', () => { select(p.id); if (map) map.flyTo(p.lon, p.lat, 4); });
+      el.querySelector('.rm').addEventListener('click', (ev) => { ev.stopPropagation(); removePoint(p.id); });
       list.appendChild(el);
     });
     $('pointCount').textContent = `${pad2(state.s.points.length)} / ${MAX_POINTS}`;
@@ -226,7 +228,8 @@
       const lvl = pointLevel(p.id);
       let critText = '';
       if (lvl === 'critical') { const a = state.alarms.find((x) => x.pointId === p.id && x.level === 'critical'); if (a) { const f = fmtMetric(a.metric, a.value); critText = `${f.text} ${f.unit}`.toUpperCase(); } }
-      st[p.id] = { level: lvl, windDir: v ? v.windDirection : null, critText };
+      const cur = v && v.currentSpeed !== null && v.currentSpeed !== undefined && v.currentDirection !== null && v.currentDirection !== undefined ? v.currentDirection : null;
+      st[p.id] = { level: lvl, windDir: v ? v.windDirection : null, curDir: cur, critText };
     });
     map.setStates(st);
     map.setSelected(state.selectedId);
@@ -726,7 +729,7 @@
     if (s.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); return; }
     WA.audio.setVolume(s.volume / 100);
     applyLanguage(s.lang);
-    if (prevRegion !== s.region || prevProj !== s.projection) map.setRegion(s.region, s.projection);
+    if (prevRegion !== s.region || prevProj !== s.projection) { map.setRegion(s.region, s.projection); state.currents.grid = null; applyLayers(); }
     if (prevLayout !== s.layout) applyLayout();
     state.settingsDraft = null;
     save(); schedule(); setView('home');
@@ -736,6 +739,83 @@
     if (prevProvider !== s.provider || key || !state.lastRefresh) refresh('auto');
     toast(t('settings_applied'), 'ok');
   });
+
+  // ------------------------------------------------------------------ provider quick-pick (top bar)
+  const PROVIDER_OPTIONS = [
+    { provider: 'openmeteo', source: 'sg', label: 'OPEN-METEO' },
+    { provider: 'stormglass', source: 'sg', label: 'STORMGLASS · SG' },
+    { provider: 'stormglass', source: 'ecmwf', label: 'STORMGLASS · ECMWF' },
+    { provider: 'stormglass', source: 'noaa', label: 'STORMGLASS · NOAA' },
+    { provider: 'stormglass', source: 'metno', label: 'STORMGLASS · MET NORWAY' },
+    { provider: 'stormglass', source: 'meteo', label: 'STORMGLASS · MÉTÉO-FRANCE' },
+    { provider: 'stormglass', source: 'dwd', label: 'STORMGLASS · DWD' },
+    { provider: 'stormglass', source: 'meto', label: 'STORMGLASS · UK MET OFFICE' }
+  ];
+  function renderProviderMenu() {
+    const menu = $('providerMenu');
+    menu.innerHTML = '';
+    PROVIDER_OPTIONS.forEach((o) => {
+      const b = document.createElement('button'); b.type = 'button';
+      const active = state.s.provider === o.provider && (o.provider === 'openmeteo' || state.s.sgSource === o.source);
+      b.className = `pm-item ${active ? 'active' : ''}`;
+      b.textContent = o.label;
+      b.addEventListener('click', (ev) => { ev.stopPropagation(); menu.hidden = true; chooseProvider(o); });
+      menu.appendChild(b);
+    });
+  }
+  async function chooseProvider(o) {
+    if (o.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); openSettings(); return; }
+    const changed = state.s.provider !== o.provider || state.s.sgSource !== o.source;
+    state.s.provider = o.provider; state.s.sgSource = o.source; save();
+    if (changed) { state.forecasts = {}; state.quota = null; renderStatus(); renderSelected(); toast(t('provider_switched', { p: o.label }), 'ok'); refresh('auto'); }
+  }
+  $('pillProvider').addEventListener('click', (ev) => { ev.stopPropagation(); renderProviderMenu(); const m = $('providerMenu'); m.hidden = !m.hidden; });
+  $('pillProvider').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); $('pillProvider').click(); } });
+  document.addEventListener('click', () => { $('providerMenu').hidden = true; });
+
+  // ------------------------------------------------------------------ map layers: depth bands + surface currents
+  function applyLayers() {
+    map.setLayer('depth', state.s.layers.depth); map.setLayer('currents', state.s.layers.currents);
+    $('btnLayerDepth').classList.toggle('on', state.s.layers.depth);
+    $('btnLayerCurrents').classList.toggle('on', state.s.layers.currents);
+    if (state.s.layers.currents) refreshCurrents();
+    renderCurrentsMeta();
+  }
+  $('btnLayerDepth').addEventListener('click', () => { state.s.layers.depth = !state.s.layers.depth; save(); applyLayers(); });
+  $('btnLayerCurrents').addEventListener('click', () => { state.s.layers.currents = !state.s.layers.currents; save(); applyLayers(); });
+  // Lattice of sea points over the map window (≈1° × 0.6°), masked by the 0 m depth band.
+  function currentsLattice() {
+    const r = map.region(); const pts = [];
+    for (let lat = r.latMin + 0.3; lat < r.latMax; lat += 0.6) for (let lon = r.lonMin + 0.5; lon < r.lonMax; lon += 1.0) if (map.isSea(lon, lat)) pts.push({ lat: +lat.toFixed(3), lon: +lon.toFixed(3) });
+    return pts;
+  }
+  async function refreshCurrents(force) {
+    const c = state.currents;
+    if (map.regionKey() !== 'blacksea') return;
+    if (c.busy) return;
+    if (!force && c.grid && Date.now() - c.fetchedAt < 3 * 3600e3) { renderCurrentVectors(); return; }
+    c.busy = true; renderCurrentsMeta();
+    try { c.grid = await window.bridge.fetchCurrents(currentsLattice()); c.fetchedAt = Date.now(); }
+    catch (e) { toast(String(e.message || e), 'err'); }
+    finally { c.busy = false; renderCurrentVectors(); renderCurrentsMeta(); }
+  }
+  function renderCurrentVectors() {
+    const c = state.currents; if (!c.grid) return;
+    const now = Date.now();
+    const vec = [];
+    c.grid.forEach((g) => {
+      if (!g.hours.length) return;
+      let prev = null, next = null;
+      for (const h of g.hours) { if (h.t <= now) prev = h; else { next = h; break; } }
+      const h = prev && next ? (now - prev.t < next.t - now ? prev : next) : (prev || next);
+      if (h && h.speed > 0.02) vec.push({ lat: g.lat, lon: g.lon, speed: h.speed, dir: h.dir });
+    });
+    map.setCurrents(vec);
+  }
+  function renderCurrentsMeta() {
+    const c = state.currents;
+    $('currentsMeta').textContent = !state.s.layers.currents ? '' : c.busy && !c.grid ? t('currents_loading') : c.grid ? t('currents_meta', { t: fmtTime(c.fetchedAt), n: c.grid.filter((g) => g.hours.length).length }) : '';
+  }
 
   // ------------------------------------------------------------------ layout
   function applyLayout() {
@@ -775,7 +855,6 @@
       onMapClick: (ll) => { if (state.view === 'home' && state.s.points.length < MAX_POINTS) openAddPoint(ll); },
       onHover: (ll) => {
         const txt = `${U.fmtLat(ll.lat)} ${U.fmtLon(ll.lon)}`;
-        $('coordReadout').textContent = txt;
         const tag = $('cursorTag'); tag.hidden = false; tag.textContent = txt;
         tag.style.left = `${ll.px + 14}px`; tag.style.top = `${ll.py + 14}px`;
       },
@@ -786,6 +865,7 @@
     });
     map.setRegion(state.s.region, state.s.projection);
     applyLayout();
+    window.bridge.loadMapData('depth').then((topo) => { map.setDepth(topo); applyLayers(); }).catch((e) => { toast(t('map_fail') + e.message, 'err'); applyLayers(); });
     if (state.s.points.length && !state.selectedId) state.selectedId = state.s.points[0].id;
     tickClock(); setInterval(tickClock, 1000);
     renderAll(); schedule(); refresh('auto');

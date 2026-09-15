@@ -14,11 +14,13 @@
       <div class="brand">
         <span class="brand-mark"></span>
         <span class="brand-name">WEATHER<span class="accent">ALERT</span></span>
-        <span class="brand-sub" id="brandSub" data-i18n="brand_sub">MARITIME THRESHOLD WATCH</span>
+        <span class="brand-sub" id="brandSub" hidden></span>
         <span class="crumb" id="crumb" hidden></span>
       </div>
       <div class="topbar-center" id="topbarStatus">
-        <div class="status" id="pillProvider"><span class="dot"></span><span id="providerName">OPEN-METEO</span></div>
+        <div class="status provider-pick" id="pillProvider" tabindex="0" data-i18n-title="tip_provider"><span class="dot"></span><span id="providerName">OPEN-METEO</span><span class="caret">▾</span>
+          <div class="provider-menu" id="providerMenu" hidden></div>
+        </div>
         <div class="status" id="pillQuota"><span id="quotaText">—</span></div>
         <div class="status" id="pillRefresh"><span id="refreshText">—</span></div>
       </div>
@@ -69,14 +71,20 @@
         <div class="cursor-tag" id="cursorTag" hidden></div>
 
         <div class="readout">
-          <div id="readoutMeta">—</div>
-          <div class="readout-coords" id="coordReadout">—</div>
           <div class="legend">
             <span><i class="sq normal"></i><span data-i18n="legend_normal">NORMAL</span></span>
             <span><i class="sq warn"></i><span data-i18n="legend_warn">WITHIN LEAD</span></span>
             <span><i class="sq crit"></i><span data-i18n="legend_crit">EXCEEDED</span></span>
           </div>
-          <span id="gridText" hidden></span><span id="lodText" hidden></span>
+          <span id="coordReadout" hidden></span><span id="gridText" hidden></span><span id="lodText" hidden></span>
+        </div>
+        <div class="map-corner">
+          <div class="layer-btns">
+            <button class="layer-btn" id="btnLayerDepth" data-i18n-title="layer_depth" type="button"><svg viewBox="0 0 20 20"><path d="M2 6c3-2 5 2 8 0s5-2 8 0M2 10c3-2 5 2 8 0s5-2 8 0M2 14c3-2 5 2 8 0s5-2 8 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+            <button class="layer-btn" id="btnLayerCurrents" data-i18n-title="layer_currents" type="button"><svg viewBox="0 0 20 20"><path d="M3 10h11M11 6l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 15h6M3 5h6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".6"/></svg></button>
+          </div>
+          <div class="map-meta" id="readoutMeta">—</div>
+          <div class="map-meta dim" id="currentsMeta"></div>
         </div>
       </section>
 

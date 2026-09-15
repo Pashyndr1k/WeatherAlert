@@ -58,11 +58,13 @@
     const bg = svg.append('rect').attr('class', 'sea').attr('fill', 'url(#sea)');
     const root = svg.append('g').attr('class', 'root').attr('clip-path', 'url(#mapclip)');
     const gGrat = root.append('g').attr('class', 'graticule');
+    const gDepth = root.append('g').attr('class', 'depth');
     const gLand = root.append('g').attr('class', 'land');
     const gLakes = root.append('g').attr('class', 'lakes');
     const gRivers = root.append('g').attr('class', 'rivers');
     const gBorders = root.append('g').attr('class', 'borders');
     const gRegion = root.append('g').attr('class', 'region');
+    const gCurrents = root.append('g').attr('class', 'currents');
     const gPorts = root.append('g').attr('class', 'ports');
     const gMarkers = root.append('g').attr('class', 'markers');
     const gLabels = svg.append('g').attr('class', 'grid-labels'); // screen-space, not zoomed
@@ -77,12 +79,15 @@
     const cache = {};   // `${dataset}:${res}` → { land, lakes, borders, rivers } GeoJSON feature arrays
     let currentRes = null;
     let loading = null;
+    let depthFeatures = null, currentVectors = [];
+    const layers = { depth: true, currents: true };
 
     const zoom = d3.zoom().scaleExtent([1, 60]).on('zoom', (ev) => {
       transform = ev.transform; k = transform.k;
       root.attr('transform', transform);
       root.selectAll('.marker').attr('transform', markerTransform);
       root.selectAll('.port').attr('transform', portTransform);
+      root.selectAll('.cvec').attr('transform', vecTransform);
       updateStrokes();
       drawGraticule();
       ensureLod();
@@ -91,6 +96,7 @@
 
     function markerTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; }
     function portTransform(d) { const [x, y] = projection([d[2], d[1]]); return `translate(${x},${y}) scale(${1 / k})`; }
+    function vecTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k}) rotate(${d.dir})`; }
     function updateStrokes() {
       gLand.selectAll('path').attr('stroke-width', 0.9 / k);
       gLakes.selectAll('path').attr('stroke-width', 0.5 / k);
@@ -98,6 +104,7 @@
       gBorders.selectAll('path').attr('stroke-width', 0.6 / k);
       gRegion.selectAll('path').attr('stroke-width', 1 / k);
       gGrat.selectAll('path').attr('stroke-width', 0.6 / k);
+      gDepth.selectAll('path').attr('stroke-width', 0.4 / k);
       gPorts.style('display', k >= 1.6 || region.ports.length < 12 ? null : 'none');
     }
 
@@ -125,6 +132,9 @@
       bg.attr('width', width).attr('height', height);
       clipRect.attr('width', width).attr('height', height);
       projection.fitExtent([[34, 24], [width - 12, height - 26]], fitFeature());
+      // Restrict panning to the map window: the user can never drag beyond the region outline.
+      const b = path.bounds(regionOutline());
+      zoom.translateExtent([[b[0][0] - 2, b[0][1] - 2], [b[1][0] + 2, b[1][1] + 2]]);
       redrawStatic();
       renderMarkers();
       renderPorts();
@@ -140,7 +150,38 @@
       layer(gRivers, data && data.rivers);
       layer(gBorders, data && data.borders);
       gRegion.selectAll('path').data([regionOutline()]).join('path').attr('d', path);
+      gDepth.style('display', layers.depth && region.dataset === 'gshhg' ? null : 'none')
+        .selectAll('path').data(depthFeatures && region.dataset === 'gshhg' ? depthFeatures : []).join('path').attr('d', path).attr('data-depth', (f) => f.properties.depth);
+      renderCurrents();
       updateStrokes();
+    }
+    function renderCurrents() {
+      gCurrents.style('display', layers.currents && region.dataset === 'gshhg' ? null : 'none');
+      const sel = gCurrents.selectAll('g.cvec').data(currentVectors, (d) => `${d.lat},${d.lon}`);
+      const enter = sel.enter().append('g').attr('class', 'cvec');
+      enter.append('path').attr('class', 'shaft');
+      enter.append('path').attr('class', 'head').attr('d', 'M-3,-3 L0,2 L3,-3 Z');
+      enter.append('title');
+      sel.exit().remove();
+      const all = gCurrents.selectAll('g.cvec');
+      all.attr('transform', vecTransform)
+        .attr('data-spd', (d) => (d.speed >= 0.5 ? 'hi' : d.speed >= 0.25 ? 'mid' : 'lo'));
+      all.select('path.shaft').attr('d', (d) => { const L = Math.min(26, 6 + d.speed * 40); return `M0,${-L / 2} L0,${L / 2}`; });
+      all.select('path.head').attr('transform', (d) => `translate(0,${Math.min(26, 6 + d.speed * 40) / 2})`);
+      all.select('title').text((d) => `${(d.speed * 1.943844).toFixed(2)} kn → ${Math.round(d.dir)}°`);
+    }
+    function setDepth(topo) {
+      depthFeatures = topo && topo.objects && topo.objects.depth ? topojson.feature(topo, topo.objects.depth).features : null;
+      redrawStatic();
+    }
+    // Vectors: [{lat, lon, speed(m/s), dir(towards °)}]
+    function setCurrents(vectors) { currentVectors = vectors || []; renderCurrents(); }
+    function setLayer(name, on) { layers[name] = Boolean(on); redrawStatic(); }
+    // Is this lon/lat inside the sea (0 m depth band)? Used to keep the currents lattice off the land.
+    function isSea(lon, lat) {
+      if (!depthFeatures) return true;
+      const sea = depthFeatures.find((f) => f.properties.depth === 0);
+      return sea ? d3.geoContains(sea, [lon, lat]) : true;
     }
 
     // Graticule adapts to zoom; labels are drawn in screen space along the left and bottom edges.
@@ -224,6 +265,7 @@
       const enter = sel.enter().append('g').attr('class', 'marker').attr('transform', markerTransform).style('opacity', 0);
       enter.append('circle').attr('class', 'ring').attr('r', 13).attr('cy', -6);
       enter.append('g').attr('class', 'arrow').append('path').attr('d', 'M0,-30 L4,-22 L1.5,-22 L1.5,-14 L-1.5,-14 L-1.5,-22 L-4,-22 Z');
+      enter.append('g').attr('class', 'carrow').append('path').attr('d', 'M0,-30 L4,-22 L1.5,-22 L1.5,-14 L-1.5,-14 L-1.5,-22 L-4,-22 Z');
       // downward triangle 14 x 12 whose tip sits exactly on the coordinate
       enter.append('path').attr('class', 'tri').attr('d', 'M-7,-12 L7,-12 L0,0 Z');
       enter.append('text').attr('class', 'label').attr('x', 0).attr('y', 14);
@@ -241,6 +283,10 @@
       all.select('g.arrow').style('display', (d) => (states[d.id] && states[d.id].windDir !== null && states[d.id].windDir !== undefined ? null : 'none'))
         .transition().duration(900).ease(d3.easeCubicOut)
         .attr('transform', (d) => `rotate(${((states[d.id] || {}).windDir || 0) + 180})`);
+      // current drift arrow: only for sea points (current data present); direction is "towards"
+      all.select('g.carrow').style('display', (d) => (states[d.id] && states[d.id].curDir !== null && states[d.id].curDir !== undefined ? null : 'none'))
+        .transition().duration(900).ease(d3.easeCubicOut)
+        .attr('transform', (d) => `rotate(${(states[d.id] || {}).curDir || 0})`);
       gMarkers.selectAll('g.marker').filter((d) => d.id === selectedId).raise();
     }
 
@@ -281,7 +327,7 @@
     new ResizeObserver(() => resize()).observe(container);
     resize();
 
-    return { setRegion, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, regionKey: () => regionKey, lod: () => currentRes };
+    return { setRegion, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, regionKey: () => regionKey, lod: () => currentRes, setDepth, setCurrents, setLayer, isSea };
   }
 
   WA.map = { createMap, REGIONS, PROJECTIONS };

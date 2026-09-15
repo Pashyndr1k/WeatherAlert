@@ -8,6 +8,7 @@
     // topbar / views
     brand_sub: 'MARITIME THRESHOLD WATCH', crumb_alarms: '/ ACTIVE ALARMS', crumb_settings: '/ SETTINGS',
     btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_hlp: 'HLP', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
+    tip_provider: 'Choose the data provider', layer_depth: 'Depth bands (ETOPO 2022)', layer_currents: 'Surface currents (Open-Meteo marine model)', currents_meta: 'CURRENTS {t} · {n} PTS', currents_loading: 'CURRENTS LOADING', provider_switched: 'Provider: {p}', remove_point_tip: 'Remove point',
     crit_title: 'CRITICAL THRESHOLDS', crit_summary: '{c} EXCEEDED · {w} WITHIN LEAD', crit_raised: 'RAISED', crit_col_point: 'POINT · METRIC · RULE', crit_col_status: 'STATUS',
     crit_exceeded: 'EXCEEDED', crit_peak: 'PEAK {v} @ {t}', crit_eta: 'ETA {eta} · {t}', crit_now: 'NOW {v} · LEAD {lead}', crit_status_on: 'SIREN REPEATING · OS NOTIFY SENT', crit_status_muted: 'SIREN MUTED · OS NOTIFY SENT',
     crit_chart: 'CHART', crit_snooze: 'SNOOZE 10', crit_snooze_tip: 'Snooze for 10 minutes', crit_keys: 'ESC = SNOOZE · ENTER = ACKNOWLEDGE', crit_engine: 'ENGINE EVAL {t} · CACHED 72 H FORECAST', crit_snoozed: 'Critical pop-up snoozed for 10 minutes',
@@ -83,6 +84,7 @@
   const UK = {
     brand_sub: 'МОРСЬКИЙ КОНТРОЛЬ ПОРОГІВ', crumb_alarms: '/ АКТИВНІ ТРИВОГИ', crumb_settings: '/ НАЛАШТУВАННЯ',
     btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_hlp: 'ДОВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
+    tip_provider: 'Обрати постачальника даних', layer_depth: 'Глибини (ETOPO 2022)', layer_currents: 'Поверхневі течії (морська модель Open-Meteo)', currents_meta: 'ТЕЧІЇ {t} · {n} ТЧК', currents_loading: 'ЗАВАНТАЖЕННЯ ТЕЧІЙ', provider_switched: 'Джерело: {p}', remove_point_tip: 'Видалити точку',
     crit_title: 'КРИТИЧНІ ПОРОГИ', crit_summary: '{c} ПЕРЕВИЩЕНО · {w} У МЕЖАХ УПЕРЕДЖЕННЯ', crit_raised: 'ПОДАНО', crit_col_point: 'ТОЧКА · ПОКАЗНИК · ПРАВИЛО', crit_col_status: 'СТАТУС',
     crit_exceeded: 'ПЕРЕВИЩЕНО', crit_peak: 'ПІК {v} @ {t}', crit_eta: 'ЧЕРЕЗ {eta} · {t}', crit_now: 'ЗАРАЗ {v} · УПЕРЕДЖ {lead}', crit_status_on: 'СИРЕНА ПОВТОРЮЄТЬСЯ · СПОВІЩЕННЯ ОС НАДІСЛАНО', crit_status_muted: 'СИРЕНУ ВИМКНЕНО · СПОВІЩЕННЯ ОС НАДІСЛАНО',
     crit_chart: 'КАРТА', crit_snooze: 'ВІДКЛАСТИ 10', crit_snooze_tip: 'Відкласти на 10 хвилин', crit_keys: 'ESC = ВІДКЛАСТИ · ENTER = ПІДТВЕРДИТИ', crit_engine: 'ОЦІНКА РУШІЯ {t} · КЕШ ПРОГНОЗУ 72 ГОД', crit_snoozed: 'Критичне вікно відкладено на 10 хвилин',
@@ -151,7 +153,7 @@
       windWaveHeight: 'Висота вітрової хвилі', windWavePeriod: 'Період вітрової хвилі', windWaveDirection: 'Напрямок вітрової хвилі',
       pressure: 'Тиск (MSL)', airTemperature: 'Температура повітря', dewPointTemperature: 'Точка роси', humidity: 'Відносна вологість', cloudCover: 'Хмарність', visibility: 'Видимість',
       precipitation: 'Опади', rain: 'Дощ', snow: 'Сніг', graupel: 'Крупа', snowDepth: 'Висота снігу', snowAlbedo: 'Альбедо снігу',
-      waterTemperature: 'Температура води', surfaceTemperature: 'Температура поверхні', currentSpeed: 'Швидкість течії', currentDirection: 'Напрямок течії', seaLevel: 'Рівень моря (відн. MSL)', iceCover: 'Льодовий покрив', seaIceThickness: 'Товщина льоду',
+      waterTemperature: 'Температура води', surfaceTemperature: 'Температура поверхні', currentSpeed: 'Швидкість течії', currentDirection: 'Напрямок течії (куди)', seaLevel: 'Рівень моря (відн. MSL)', iceCover: 'Льодовий покрив', seaIceThickness: 'Товщина льоду',
       d_beaufort: 'Сила вітру (Бофорт)', d_seaState: 'Стан моря (Дуглас)', d_cloudCondition: 'Стан неба', d_airCondition: 'Стан атмосфери', d_pressureTendency: 'Тенденція тиску (3 год)', d_crossSea: 'Перехресне хвилювання', d_fogRisk: 'Ризик туману', d_gustFactor: 'Коефіцієнт поривів', d_icing: 'Індекс обледеніння (Overland)', d_advFog: 'Імовірність адвективного туману'
     },
     short: { windSpeed: 'ВІТЕР 10М', gust: 'ПОРИВИ', windDirection: 'НАПР ВІТРУ', waveHeight: 'ХВИЛЯ HS', wavePeriod: 'ПЕРІОД TP', waveDirection: 'НАПР ХВИЛІ', swellHeight: 'ЗИБ', swellPeriod: 'ПЕРІОД ЗИБУ', swellDirection: 'НАПР ЗИБУ', windWaveHeight: 'ВІТР ХВИЛЯ',

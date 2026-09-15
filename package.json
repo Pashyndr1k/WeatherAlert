@@ -1,7 +1,7 @@
 {
   "name": "weatheralert",
   "productName": "WeatherAlert",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Maritime weather tracking and threshold alarms for ship captains (Europe & Asia)",
   "main": "main.js",
   "private": true,
@@ -46,7 +46,8 @@
       "!tools",
       "assets/icon*.png",
       "assets/icon.ico",
-      "assets/fonts/**"
+      "assets/fonts/**",
+      "assets/blacksea/depth.json"
     ],
     "asar": true,
     "win": {

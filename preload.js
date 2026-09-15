@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('bridge', {
   hasApiKey: () => ipcRenderer.invoke('apikey:has'),
   loadMapData: (dataset, res) => ipcRenderer.invoke('map:load', dataset, res),
   fetchWeather: (points, opts) => ipcRenderer.invoke('weather:fetch', points, opts),
+  fetchCurrents: (points) => ipcRenderer.invoke('currents:fetch', points),
   notify: (title, body, urgent) => ipcRenderer.invoke('notify', { title, body, urgent }),
   attention: () => ipcRenderer.invoke('window:attention'),
   openExternal: (url) => ipcRenderer.invoke('open:external', url),
