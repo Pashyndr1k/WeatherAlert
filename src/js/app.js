@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'strip', layers: { depth: true, currents: true },
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true },
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -46,6 +46,8 @@
       // make sure the new default indicators appear for existing installs
       ['d_icing', 'd_advFog'].forEach((id) => { if (!saved.display) return; if (!state.s.display.includes(id) && saved.display.length && !saved.seenIndicators) state.s.display.push(id); });
       state.s.seenIndicators = true;
+      // 0.4.1: the right-panel layout became the default; migrate installs that still carry the old default once
+      if (!saved.layoutV2) { state.s.layout = 'side'; state.s.layoutV2 = true; }
     }
     state.hasKey = await window.bridge.hasApiKey();
   }
@@ -622,7 +624,7 @@
     state.settingsDraft = JSON.parse(JSON.stringify({ thresholds: s.thresholds }));
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
-    renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'strip';
+    renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side';
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -819,7 +821,7 @@
 
   // ------------------------------------------------------------------ layout
   function applyLayout() {
-    $('viewHome').dataset.layout = state.s.layout || 'strip';
+    $('viewHome').dataset.layout = state.s.layout || 'side';
     setTimeout(() => map && map.resize(), 0);
   }
 
