@@ -8,6 +8,9 @@
     // topbar / views
     brand_sub: 'MARITIME THRESHOLD WATCH', crumb_alarms: '/ ACTIVE ALARMS', crumb_settings: '/ SETTINGS',
     btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_hlp: 'HLP', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
+    crit_title: 'CRITICAL THRESHOLDS', crit_summary: '{c} EXCEEDED · {w} WITHIN LEAD', crit_raised: 'RAISED', crit_col_point: 'POINT · METRIC · RULE', crit_col_status: 'STATUS',
+    crit_exceeded: 'EXCEEDED', crit_peak: 'PEAK {v} @ {t}', crit_eta: 'ETA {eta} · {t}', crit_now: 'NOW {v} · LEAD {lead}', crit_status_on: 'SIREN REPEATING · OS NOTIFY SENT', crit_status_muted: 'SIREN MUTED · OS NOTIFY SENT',
+    crit_chart: 'CHART', crit_snooze: 'SNOOZE 10', crit_snooze_tip: 'Snooze for 10 minutes', crit_keys: 'ESC = SNOOZE · ENTER = ACKNOWLEDGE', crit_engine: 'ENGINE EVAL {t} · CACHED 72 H FORECAST', crit_snoozed: 'Critical pop-up snoozed for 10 minutes',
     crumb_guide: '/ USER GUIDE', tip_guide: 'User guide', guide_version: 'GUIDE FOR VERSION {v}',
     layout_title: 'WIDGET LAYOUT', layout_strip: 'Bottom strip (map-first)', layout_side: 'Right panel (classic, two columns)', layout_hint: 'Drag any widget to reorder; the order is kept in both layouts.',
     tip_mute: 'Mute / unmute audible alerts', tip_refresh: 'Refresh now', tip_settings: 'Settings', tip_alarms: 'Active alarms',
@@ -80,6 +83,9 @@
   const UK = {
     brand_sub: 'МОРСЬКИЙ КОНТРОЛЬ ПОРОГІВ', crumb_alarms: '/ АКТИВНІ ТРИВОГИ', crumb_settings: '/ НАЛАШТУВАННЯ',
     btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_hlp: 'ДОВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
+    crit_title: 'КРИТИЧНІ ПОРОГИ', crit_summary: '{c} ПЕРЕВИЩЕНО · {w} У МЕЖАХ УПЕРЕДЖЕННЯ', crit_raised: 'ПОДАНО', crit_col_point: 'ТОЧКА · ПОКАЗНИК · ПРАВИЛО', crit_col_status: 'СТАТУС',
+    crit_exceeded: 'ПЕРЕВИЩЕНО', crit_peak: 'ПІК {v} @ {t}', crit_eta: 'ЧЕРЕЗ {eta} · {t}', crit_now: 'ЗАРАЗ {v} · УПЕРЕДЖ {lead}', crit_status_on: 'СИРЕНА ПОВТОРЮЄТЬСЯ · СПОВІЩЕННЯ ОС НАДІСЛАНО', crit_status_muted: 'СИРЕНУ ВИМКНЕНО · СПОВІЩЕННЯ ОС НАДІСЛАНО',
+    crit_chart: 'КАРТА', crit_snooze: 'ВІДКЛАСТИ 10', crit_snooze_tip: 'Відкласти на 10 хвилин', crit_keys: 'ESC = ВІДКЛАСТИ · ENTER = ПІДТВЕРДИТИ', crit_engine: 'ОЦІНКА РУШІЯ {t} · КЕШ ПРОГНОЗУ 72 ГОД', crit_snoozed: 'Критичне вікно відкладено на 10 хвилин',
     crumb_guide: '/ ДОВІДНИК', tip_guide: 'Довідник користувача', guide_version: 'ДОВІДНИК ДЛЯ ВЕРСІЇ {v}',
     layout_title: 'РОЗКЛАДКА ВІДЖЕТІВ', layout_strip: 'Нижня смуга (карта на весь екран)', layout_side: 'Права панель (класична, два стовпці)', layout_hint: 'Перетягуйте віджети, щоб змінити порядок; він зберігається в обох розкладках.',
     tip_mute: 'Вимкнути / увімкнути звукові сповіщення', tip_refresh: 'Оновити зараз', tip_settings: 'Налаштування', tip_alarms: 'Активні тривоги',

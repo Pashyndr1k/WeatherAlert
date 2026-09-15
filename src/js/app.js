@@ -31,7 +31,8 @@
 
   const state = {
     s: defaultSettings(), forecasts: {}, selectedId: null, alarms: [], acked: new Set(), ackedAt: {}, seen: new Set(), reminded: new Set(),
-    lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null
+    lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
+    crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() }
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -156,6 +157,7 @@
     });
     state.alarms = alarms;
     if (fresh.length) announce(fresh);
+    updateCritPopup();
     updateAudio();
   }
   function describe(a) {
@@ -176,7 +178,8 @@
   }
   function updateAudio() {
     const un = state.alarms.filter((a) => !state.acked.has(a.key));
-    const mode = !state.s.sound || state.s.muted ? null : un.some((a) => a.level === 'critical') ? 'critical' : un.some((a) => a.level === 'warning') ? 'warning' : null;
+    const snoozed = state.crit.snoozedUntil > Date.now();
+    const mode = !state.s.sound || state.s.muted ? null : un.some((a) => a.level === 'critical') && !snoozed ? 'critical' : un.some((a) => a.level === 'warning') ? 'warning' : null;
     WA.audio.setMode(mode);
   }
   function ack(key) { state.acked.add(key); state.ackedAt[key] = Date.now(); updateAudio(); renderAlarms(); }
@@ -361,7 +364,7 @@
     // banner (home)
     const un = state.alarms.filter((a) => !state.acked.has(a.key));
     const banner = $('alarmBanner');
-    if (un.length) {
+    if (un.length && !state.crit.open) {
       const top = un[0]; const d = describe(top);
       banner.hidden = false; banner.classList.toggle('warning', top.level !== 'critical');
       $('alarmLevel').textContent = top.level === 'critical' ? t('level_critical') : t('level_warning');
@@ -437,7 +440,13 @@
   function closeModal(id) { $(id).hidden = true; }
   document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => closeModal(b.dataset.close)));
   document.querySelectorAll('.modal').forEach((m) => m.addEventListener('click', (ev) => { if (ev.target === m) m.hidden = true; }));
-  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); } });
+  document.addEventListener('keydown', (ev) => {
+    if (state.crit.open) {
+      if (ev.key === 'Escape') { ev.preventDefault(); snoozeCrit(); return; }
+      if (ev.key === 'Enter') { ev.preventDefault(); ackCrit(); return; }
+    }
+    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); }
+  });
   function openAddPoint(prefill) {
     $('ptName').value = '';
     $('ptCoords').value = prefill ? `${prefill.lat.toFixed(4)}, ${prefill.lon.toFixed(4)}` : '';
@@ -465,6 +474,99 @@
   $('btnAlarmsView').addEventListener('click', () => setView('alarms'));
   $('btnBackHome').addEventListener('click', () => setView('home'));
   $('alarmBanner').addEventListener('click', (ev) => { if (ev.target.closest('button')) return; setView('alarms'); });
+
+  // ------------------------------------------------------------------ 2A critical thresholds pop-up
+  function critUnacked() { return state.alarms.filter((a) => a.level === 'critical' && !state.acked.has(a.key)); }
+  function updateCritPopup() {
+    const c = state.crit, now = Date.now();
+    const crits = critUnacked();
+    if (!crits.length) { if (c.open) closeCrit(); c.snoozedKeys.clear(); return; }
+    const snoozed = c.snoozedUntil > now && crits.every((a) => c.snoozedKeys.has(a.key));
+    if (!c.open && !snoozed) openCrit();
+    else if (c.open) renderCritRows();
+  }
+  function openCrit() {
+    const c = state.crit;
+    c.open = true; c.raisedAt = Date.now(); c.shownKeys = new Set(); c.snoozedUntil = 0;
+    const layer = $('critLayer'); layer.hidden = false; layer.classList.remove('closing');
+    document.body.classList.add('crit-open');
+    renderCritRows(true);
+    setTimeout(() => $('critAck').focus(), 700);
+  }
+  function closeCrit() {
+    const c = state.crit; if (!c.open) return;
+    c.open = false;
+    const layer = $('critLayer'); layer.classList.add('closing');
+    document.body.classList.remove('crit-open');
+    setTimeout(() => { layer.hidden = true; layer.classList.remove('closing'); }, 220);
+    renderAlarms();
+  }
+  function ackCrit() { ackAll(); closeCrit(); }
+  function snoozeCrit() {
+    const c = state.crit;
+    c.snoozedUntil = Date.now() + 10 * 60e3;
+    c.snoozedKeys = new Set(critUnacked().map((a) => a.key));
+    closeCrit(); updateAudio(); toast(t('crit_snoozed'));
+    setTimeout(() => { evaluateAlarms(); renderAlarms(); }, 10 * 60e3 + 500);
+  }
+  function renderCritRows(initial) {
+    const c = state.crit;
+    const list = [...state.alarms].sort((a, b) => (a.level === b.level ? a.eta - b.eta : a.level === 'critical' ? -1 : 1));
+    const crits = list.filter((a) => a.level === 'critical').length, warns = list.length - crits;
+    $('critSummary').textContent = t('crit_summary', { c: crits, w: warns });
+    const r = shifted(c.raisedAt);
+    $('critRaised').innerHTML = `${t('crit_raised')} ${pad2(r.getUTCHours())}:${pad2(r.getUTCMinutes())}<span class="dim">:${pad2(r.getUTCSeconds())}</span>${tzSuffix()}`;
+    const e = shifted(Date.now());
+    $('critEngine').textContent = t('crit_engine', { t: `${pad2(e.getUTCHours())}:${pad2(e.getUTCMinutes())}:${pad2(e.getUTCSeconds())}${tzSuffix()}` });
+    $('critStatusText').textContent = state.s.sound && !state.s.muted ? t('crit_status_on') : t('crit_status_muted');
+    const wrap = $('critRows');
+    const existing = new Map([...wrap.children].map((el) => [el.dataset.key, el]));
+    const frag = document.createDocumentFragment();
+    let order = 0;
+    list.forEach((a) => {
+      const p = pointById(a.pointId); const fc = state.forecasts[a.pointId];
+      const val = fmtMetric(a.metric, a.value), lim = fmtMetric(a.metric, a.limit);
+      const isAcked = state.acked.has(a.key);
+      let row = existing.get(a.key);
+      const fresh = !row;
+      if (!row) { row = document.createElement('div'); row.dataset.key = a.key; }
+      row.className = `crit-row ${a.level} ${isAcked ? 'acked' : ''} ${fresh ? 'anim' : ''}`;
+      if (fresh) row.style.animationDelay = initial ? `${650 + order * 100}ms` : '0ms';
+      let status = '', sub = '';
+      if (a.level === 'critical') {
+        const delta = a.value - a.limit; const df = fmtMetric(a.metric, Math.abs(delta));
+        status = `${t('crit_exceeded')} · ${delta >= 0 ? '+' : '−'}${df.text}`;
+        const pk = fc ? A.peak(fc.hours, a.metric.startsWith('d_') ? 'pressure' : a.metric, Date.now(), 24 * 3600e3, a.op) : null;
+        if (pk && !a.metric.startsWith('d_')) { const pf = fmtMetric(a.metric, pk.v); sub = t('crit_peak', { v: `${pf.text} ${pf.unit}`, t: fmtTime(pk.t) }); }
+        else if (a.metric === 'd_pressureTendency' && fc) { const pr = fmtMetric('pressure', A.valueAt(fc.hours, 'pressure', Date.now())); sub = `${pr.text} ${pr.unit}`; }
+      } else {
+        status = t('crit_eta', { eta: fmtEtaClock(a.eta), t: fmtTime(a.at) });
+        const cur = fc ? A.seriesValue(fc.hours, a.metric, Date.now(), p && p.lat) : null;
+        const cf = fmtMetric(a.metric, cur);
+        sub = t('crit_now', { v: `${cf.text} ${cf.unit}`, lead: state.s.leadMin });
+      }
+      row.innerHTML = `<span class="lvl">${a.level === 'critical' ? t('st_crit') : t('st_warn')}</span>
+        <div class="pt"><div class="nm"></div><div class="sub"></div></div>
+        <div class="val"><span class="${a.level === 'critical' && fresh ? 'count' : ''}" style="${a.level === 'critical' && fresh ? `animation-delay:${initial ? 900 + order * 100 : 100}ms` : ''}">${val.text}</span> <span class="lim">/ ${lim.text} ${lim.unit}</span></div>
+        <div class="st"><div class="s1">${status}</div><div class="s2">${sub}</div></div>`;
+      row.querySelector('.nm').textContent = p ? p.name : a.pointId;
+      row.querySelector('.sub').textContent = `${mLabel(a.metric)} · ${opSym(a.op)} ${lim.text} ${lim.unit}${p ? ` · ${U.fmtLat(p.lat)} ${U.fmtLon(p.lon)}` : ''}`;
+      row.addEventListener('click', () => { select(a.pointId); });
+      frag.appendChild(row); order++;
+      c.shownKeys.add(a.key);
+    });
+    wrap.innerHTML = ''; wrap.appendChild(frag);
+  }
+  $('critAck').addEventListener('click', ackCrit);
+  $('critSnooze').addEventListener('click', snoozeCrit);
+  $('critClose').addEventListener('click', snoozeCrit);
+  $('critChart').addEventListener('click', () => {
+    const first = critUnacked()[0] || state.alarms[0];
+    if (!first) return;
+    const p = pointById(first.pointId);
+    closeCrit(); setView('home'); select(first.pointId);
+    if (p && map) map.flyTo(p.lon, p.lat, 4);
+  });
 
   // ------------------------------------------------------------------ inline limit editor
   function openLimitEditor(metricId, card) {

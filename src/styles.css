@@ -23,6 +23,15 @@ button { cursor: pointer; background: none; border: none; padding: 0; white-spac
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes toastIn { from { transform: translateX(16px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes flash { 0% { color: var(--text-bright); } 100% { color: inherit; } }
+@keyframes popIn { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.92); } 60% { opacity: 1; transform: translate(-50%, -50%) scale(1.01); } 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } }
+@keyframes popOut { from { opacity: 1; transform: translate(-50%, -50%) scale(1); } to { opacity: 0; transform: translate(-50%, -50%) scale(.96); } }
+@keyframes dimIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes bracketX { from { width: 0; } to { width: 28px; } }
+@keyframes bracketY { from { height: 0; } to { height: 28px; } }
+@keyframes rowIn { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+@keyframes sweep { from { left: -30%; } to { left: 130%; } }
+@keyframes pulseBorder { 0%, 100% { box-shadow: 0 0 0 0 rgba(232,52,42,0); } 50% { box-shadow: 0 0 0 6px rgba(232,52,42,.18); } }
+@keyframes countUp { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; } }
 
 #app { display: grid; grid-template-rows: 56px 1fr; height: 100vh; }
@@ -303,3 +312,52 @@ select option { background: var(--bg); color: var(--text); }
 .modal-head h2 { margin: 0; font: 700 20px/1 var(--display); letter-spacing: .1em; color: var(--text-bright); text-transform: uppercase; }
 .modal-body { padding: 10px 24px 18px; display: flex; flex-direction: column; gap: 18px; }
 .modal-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 14px 24px 20px; border-top: 1px solid var(--line); }
+
+/* ---------- 2A critical thresholds pop-up ---------- */
+body.crit-open .topbar, body.crit-open .view { filter: blur(1.5px); opacity: .55; transition: filter .3s, opacity .3s; }
+.crit-layer { position: fixed; inset: 0; z-index: 80; }
+.crit-scrim { position: absolute; inset: 0; background: rgba(4,5,7,.55); animation: dimIn .3s ease-out both; }
+.crit-vignette { position: absolute; inset: 0; box-shadow: inset 0 0 0 2px rgba(232,52,42,.6); animation: blink 1.4s infinite; pointer-events: none; }
+.crit-pop { position: absolute; left: 50%; top: 50%; width: 720px; max-width: calc(100vw - 80px); transform: translate(-50%, -50%); animation: popIn .4s cubic-bezier(.2,.8,.2,1) .15s both; }
+.crit-layer.closing .crit-pop { animation: popOut .2s ease-in both; }
+.crit-layer.closing .crit-scrim, .crit-layer.closing .crit-vignette { opacity: 0; transition: opacity .2s; }
+.crit-panel { position: relative; background: var(--bg); border: 1px solid var(--line-2); animation: pulseBorder 1.4s ease-in-out 1s infinite; }
+.crit-panel .cb { position: absolute; background: var(--accent); animation-duration: .35s; animation-timing-function: ease-out; animation-delay: .45s; animation-fill-mode: both; }
+.cb-tl-x, .cb-tr-x, .cb-bl-x, .cb-br-x { height: 2px; animation-name: bracketX; }
+.cb-tl-y, .cb-tr-y, .cb-bl-y, .cb-br-y { width: 2px; animation-name: bracketY; }
+.cb-tl-x, .cb-tl-y { left: -1px; top: -1px; } .cb-tr-x, .cb-tr-y { right: -1px; top: -1px; } .cb-bl-x, .cb-bl-y { left: -1px; bottom: -1px; } .cb-br-x, .cb-br-y { right: -1px; bottom: -1px; }
+.crit-head { display: flex; align-items: center; gap: 16px; padding: 12px 20px; background: var(--tint-r12); border-bottom: 1px solid var(--accent); position: relative; overflow: hidden; }
+.crit-sweep { position: absolute; top: 0; bottom: 0; width: 30%; background: linear-gradient(90deg, transparent, rgba(232,52,42,.18), transparent); animation: sweep 2.4s linear .6s infinite; pointer-events: none; }
+.crit-sq { width: 10px; height: 10px; background: var(--accent); animation: blink 1s infinite; flex: none; }
+.crit-title { font: 700 18px/1 var(--display); letter-spacing: .16em; color: var(--crit); white-space: nowrap; }
+.crit-summary { font-size: 11px; letter-spacing: .12em; color: var(--text-bright); white-space: nowrap; text-transform: uppercase; }
+.crit-raised { margin-left: auto; font-size: 11px; letter-spacing: .1em; color: var(--text-3); white-space: nowrap; text-transform: uppercase; }
+.crit-raised .dim { color: var(--sec); }
+.crit-close { width: 24px; height: 24px; border: 1px solid var(--line-2); display: grid; place-items: center; font-size: 12px; color: var(--text-3); flex: none; position: relative; }
+.crit-close:hover { border-color: var(--line-3); color: var(--text); }
+.crit-cols, .crit-row { display: grid; grid-template-columns: 52px minmax(0, 1fr) 130px 150px; gap: 14px; }
+.crit-cols { padding: 7px 20px; font-size: 10px; letter-spacing: .14em; color: var(--text-4); border-bottom: 1px solid var(--line); text-transform: uppercase; animation: rowIn .3s ease-out .55s both; white-space: nowrap; }
+.crit-rows { display: flex; flex-direction: column; max-height: min(52vh, 520px); overflow-y: auto; }
+.crit-rows::-webkit-scrollbar { width: 6px; } .crit-rows::-webkit-scrollbar-thumb { background: var(--line-2); }
+.crit-row { padding: 11px 20px; align-items: center; border-bottom: 1px solid var(--line); border-left: 2px solid transparent; cursor: pointer; }
+.crit-row.anim { animation: rowIn .35s ease-out both; }
+.crit-row.critical { border-left-color: var(--accent); background: var(--tint-r06); }
+.crit-row.acked { opacity: .45; }
+.crit-row .lvl { font: 700 12px/1 var(--display); letter-spacing: .12em; color: var(--warn); }
+.crit-row.critical .lvl { color: var(--crit); }
+.crit-row .nm { font: 700 15px/1.1 var(--display); letter-spacing: .04em; color: var(--text-bright); text-transform: uppercase; }
+.crit-row .sub { font-size: 10px; color: var(--text-3); margin-top: 3px; text-transform: uppercase; }
+.crit-row .val { font: 600 20px/1 var(--display); color: var(--text-bright); white-space: nowrap; }
+.crit-row.critical .val { color: var(--crit); }
+.crit-row .val .count { display: inline-block; animation: countUp .6s steps(6) both; }
+.crit-row .val .lim { font-size: 10px; color: var(--text-3); font-family: var(--mono); font-weight: 400; }
+.crit-row .st .s1 { font-size: 11px; color: var(--warn); white-space: nowrap; text-transform: uppercase; }
+.crit-row.critical .st .s1 { color: var(--crit); }
+.crit-row .st .s2 { font-size: 9px; color: var(--text-3); margin-top: 3px; white-space: nowrap; text-transform: uppercase; }
+.crit-foot { display: flex; align-items: center; gap: 16px; padding: 12px 20px; animation: rowIn .35s ease-out .95s both; }
+.crit-status { display: flex; align-items: center; gap: 10px; font-size: 10px; letter-spacing: .1em; color: var(--text-3); white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+.crit-dot { width: 6px; height: 6px; background: var(--accent); animation: blink .6s infinite; flex: none; }
+.crit-actions { margin-left: auto; display: flex; gap: 6px; flex: none; }
+.crit-actions .lbl-btn { font-size: 10px; padding: 7px 10px; color: var(--text); }
+.crit-actions .lbl-btn.solid { padding: 7px 14px; color: var(--bg); }
+.crit-under { display: flex; justify-content: space-between; margin-top: 8px; font-size: 9px; letter-spacing: .12em; color: var(--text-dim); white-space: nowrap; text-transform: uppercase; gap: 16px; }

@@ -237,6 +237,38 @@
       </div>
     </main>
 
+    <!-- ================= 2A Critical thresholds pop-up ================= -->
+    <div class="crit-layer" id="critLayer" hidden>
+      <div class="crit-scrim"></div>
+      <div class="crit-vignette"></div>
+      <div class="crit-pop" id="critPop" role="dialog" aria-modal="true">
+        <div class="crit-panel">
+          <i class="cb cb-tl-x"></i><i class="cb cb-tl-y"></i><i class="cb cb-tr-x"></i><i class="cb cb-tr-y"></i><i class="cb cb-bl-x"></i><i class="cb cb-bl-y"></i><i class="cb cb-br-x"></i><i class="cb cb-br-y"></i>
+          <div class="crit-head">
+            <span class="crit-sweep"></span>
+            <span class="crit-sq"></span>
+            <span class="crit-title" data-i18n="crit_title">CRITICAL THRESHOLDS</span>
+            <span class="crit-summary" id="critSummary"></span>
+            <span class="crit-raised" id="critRaised"></span>
+            <button class="crit-close" id="critClose" type="button" data-i18n-title="crit_snooze_tip">×</button>
+          </div>
+          <div class="crit-rows">
+            <div class="crit-cols"><span data-i18n="col_level">LEVEL</span><span data-i18n="crit_col_point">POINT · METRIC · RULE</span><span data-i18n="col_value">VALUE / LIMIT</span><span data-i18n="crit_col_status">STATUS</span></div>
+            <div id="critRows"></div>
+          </div>
+          <div class="crit-foot">
+            <div class="crit-status"><span class="crit-dot"></span><span id="critStatusText"></span></div>
+            <div class="crit-actions">
+              <button class="lbl-btn" id="critChart" type="button" data-i18n="crit_chart">CHART</button>
+              <button class="lbl-btn" id="critSnooze" type="button" data-i18n="crit_snooze">SNOOZE 10</button>
+              <button class="lbl-btn solid" id="critAck" type="button" data-i18n="ack_all">ACKNOWLEDGE ALL</button>
+            </div>
+          </div>
+        </div>
+        <div class="crit-under"><span id="critEngine"></span><span data-i18n="crit_keys">ESC = SNOOZE · ENTER = ACKNOWLEDGE</span></div>
+      </div>
+    </div>
+
     <div class="toasts" id="toasts"></div>
 
     <!-- ================= Add point modal ================= -->

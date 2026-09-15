@@ -28,6 +28,14 @@
 <li><b>CRITICAL</b> (red) — the value at the present moment already exceeds the limit.</li>
 </ul>
 <p>Alarms are announced by the banner across the map, the widget and marker colours, an audible chime (warning) or siren (critical) that repeats until acknowledged, a system notification and a taskbar flash. <b>ACKNOWLEDGE ALL</b> silences the sound; the alarm stays listed until the condition clears.</p>` },
+    { id: 'critpop', title: 'Critical pop-up', body: `
+<p>The moment any limit becomes <b>exceeded</b>, a red-framed pop-up takes over the screen: the map dims behind it and the panel lists every active alarm, critical rows first, each with the point, the rule, the current value against the limit, and a status (<b>EXCEEDED · +1.4</b> with the 24-hour peak, or the ETA for warnings still within the lead window). The siren repeats while it is open.</p>
+<ul>
+<li><b>ACKNOWLEDGE ALL</b> or <b>Enter</b> — acknowledges every listed alarm, stops the siren and closes the pop-up. Alarms stay in the Active alarms view until the condition clears.</li>
+<li><b>SNOOZE 10</b>, <b>×</b> or <b>Esc</b> — hides the pop-up and mutes the siren for 10 minutes. It re-opens if the limit is still exceeded after that, or immediately if a new critical alarm appears.</li>
+<li><b>CHART</b> — closes the pop-up and centres the map on the first critical point.</li>
+</ul>
+<p>Warning-only states keep using the banner across the top of the map; the pop-up is reserved for exceeded limits.</p>` },
     { id: 'alarms', title: 'Active alarms view', body: `
 <p>Press <b>ALM</b> or click the banner. The table lists every active alarm sorted critical first, then by ETA, with the point, the rule, the forecast value against the limit, the ETA and an <b>ACK</b> button. Acknowledged rows are dimmed and show the acknowledgement time. The timeline on the right places each alarm on the next lead window; click a row to jump to that point on the map.</p>` },
     { id: 'settings', title: 'Settings', body: `
@@ -45,6 +53,7 @@
 <li><b>Cross-sea</b> (swell against wind waves), <b>fog risk</b> (dew-point spread) and <b>gust factor</b> are available in Settings → Metrics.</li>
 </ul>` },
     { id: 'whatsnew', title: "What's new", body: `
+<p><b>0.3.1</b> — critical thresholds pop-up (design option 2A): full-screen alert with acknowledge, snooze and chart actions, Enter / Esc keys.</p>
 <p><b>0.3.0</b> — in-app user guide (EN / UA); widget layout selector (bottom strip or right panel); drag-and-drop widget ordering; dark backing under the tracking rail; new refresh indicator.</p>
 <p><b>0.2.1</b> — time-zone setting (default UTC+3); limit editor now opens above the strip; single map grid.</p>
 <p><b>0.2.0</b> — OUTPOST interface; icing index and advection-fog probability; Ukrainian language.</p>
@@ -75,6 +84,14 @@
 <li><b>КРИТИЧНО</b> (червоний) — значення в поточний момент уже перевищує межу.</li>
 </ul>
 <p>Тривоги подаються банером над картою, кольором віджетів і маркерів, звуком (дзвінок — увага, сирена — критично), що повторюється до підтвердження, системним сповіщенням і блиманням на панелі задач. <b>ПІДТВЕРДИТИ ВСІ</b> вимикає звук; тривога лишається в списку, доки умова не зникне.</p>` },
+    { id: 'critpop', title: 'Критичне вікно', body: `
+<p>Щойно якусь межу <b>перевищено</b>, на екрані з’являється вікно з червоною рамкою: карта позаду темнішає, а панель перелічує всі активні тривоги — спершу критичні — з точкою, правилом, поточним значенням проти межі та статусом (<b>ПЕРЕВИЩЕНО · +1.4</b> із піком за 24 години або час до перетину для попереджень у межах упередження). Поки вікно відкрите, сирена повторюється.</p>
+<ul>
+<li><b>ПІДТВЕРДИТИ ВСІ</b> або <b>Enter</b> — підтверджує всі перелічені тривоги, зупиняє сирену й закриває вікно. Тривоги лишаються на екрані активних тривог, доки умова не зникне.</li>
+<li><b>ВІДКЛАСТИ 10</b>, <b>×</b> або <b>Esc</b> — ховає вікно та вимикає сирену на 10 хвилин. Вікно відкриється знову, якщо межа досі перевищена, або одразу, якщо з’явиться нова критична тривога.</li>
+<li><b>КАРТА</b> — закриває вікно й наводить карту на першу критичну точку.</li>
+</ul>
+<p>Для станів лише з попередженнями й далі використовується банер над картою; вікно призначене тільки для перевищених меж.</p>` },
     { id: 'alarms', title: 'Екран активних тривог', body: `
 <p>Натисніть <b>ТРВ</b> або клацніть банер. Таблиця містить усі активні тривоги (спочатку критичні, далі за часом): точка, правило, прогнозне значення проти межі, час і кнопка <b>ПІДТВ</b>. Підтверджені рядки приглушені й показують час підтвердження. Хронологія праворуч розміщує кожну тривогу на найближчому вікні упередження; клацніть рядок, щоб перейти до точки на карті.</p>` },
     { id: 'settings', title: 'Налаштування', body: `
@@ -92,11 +109,12 @@
 <li><b>Перехресне хвилювання</b> (зиб проти вітрових хвиль), <b>ризик туману</b> (дефіцит точки роси) та <b>коефіцієнт поривів</b> доступні в Налаштування → Показники.</li>
 </ul>` },
     { id: 'whatsnew', title: 'Що нового', body: `
+<p><b>0.3.1</b> — вікно критичних порогів (варіант дизайну 2A): повноекранне сповіщення з підтвердженням, відкладанням і переходом до карти, клавіші Enter / Esc.</p>
 <p><b>0.3.0</b> — вбудований довідник (EN / UA); вибір розкладки віджетів (нижня смуга або права панель); перестановка віджетів перетягуванням; темна підкладка під списком точок; новий індикатор оновлення.</p>
 <p><b>0.2.1</b> — налаштування часового поясу (типово UTC+3); редактор межі відкривається над смугою; одна сітка на карті.</p>
 <p><b>0.2.0</b> — інтерфейс OUTPOST; індекс обледеніння та ймовірність адвективного туману; українська мова.</p>
 <p><b>0.1.0</b> — перший випуск: карта Чорного моря GSHHG, джерела Open-Meteo / Stormglass, порогові тривоги з упередженням 60–90 хв, редагування меж на віджетах, лаунчер і збірки релізів на GitHub.</p>` }
   ];
 
-  WA.GUIDE = { version: '0.3.0', en: EN, uk: UK };
+  WA.GUIDE = { version: '0.3.1', en: EN, uk: UK };
 })();
