@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180,
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'strip',
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -93,13 +93,14 @@
   function setView(v) {
     state.view = v;
     document.getElementById('app').dataset.view = v;
-    $('viewHome').hidden = v !== 'home'; $('viewAlarms').hidden = v !== 'alarms'; $('viewSettings').hidden = v !== 'settings';
-    $('homeButtons').hidden = v !== 'home'; $('settingsButtons').hidden = v !== 'settings'; $('alarmsButtons').hidden = v !== 'alarms';
+    $('viewHome').hidden = v !== 'home'; $('viewAlarms').hidden = v !== 'alarms'; $('viewSettings').hidden = v !== 'settings'; $('viewGuide').hidden = v !== 'guide';
+    $('homeButtons').hidden = v !== 'home'; $('settingsButtons').hidden = v !== 'settings'; $('alarmsButtons').hidden = v !== 'alarms'; $('guideButtons').hidden = v !== 'guide';
     $('topbarStatus').hidden = v !== 'home';
     $('brandSub').hidden = v !== 'home';
     $('crumb').hidden = v === 'home';
-    $('crumb').textContent = v === 'alarms' ? t('crumb_alarms') : v === 'settings' ? t('crumb_settings') : '';
+    $('crumb').textContent = v === 'alarms' ? t('crumb_alarms') : v === 'settings' ? t('crumb_settings') : v === 'guide' ? t('crumb_guide') : '';
     if (v === 'alarms') renderAlarmsView();
+    if (v === 'guide') renderGuide();
     if (v === 'home') { setTimeout(() => map && map.resize(), 0); }
   }
 
@@ -120,7 +121,7 @@
     if (state.busy) return;
     if (!state.s.points.length) { renderStatus(); return; }
     state.busy = true; state.error = null; renderStatus();
-    $('btnRefresh').classList.add('spin');
+    $('btnRefresh').classList.add('busy');
     try {
       const params = Array.from(new Set([...state.s.display, ...state.s.thresholds.map((x) => x.metric)])).filter((id) => BY_ID[id] && BY_ID[id].sg && !id.startsWith('d_'));
       const res = await window.bridge.fetchWeather(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params, source: state.s.sgSource, hours: 72 });
@@ -132,7 +133,7 @@
       toast(state.error, 'err');
     } finally {
       state.busy = false;
-      $('btnRefresh').classList.remove('spin');
+      $('btnRefresh').classList.remove('busy');
       renderStatus(); evaluateAlarms(); renderAll();
     }
   }
@@ -250,10 +251,11 @@
     const v = currentValues(p.id);
     grid.innerHTML = '';
     if (!fc) { grid.innerHTML = `<div class="card placeholder">${state.busy ? t('loading') : (state.error || t('no_data'))}</div>`; return; }
-    const order = [...METRICS, ...DERIVED].filter((m) => state.s.display.includes(m.id));
+    const order = state.s.display.map((id) => BY_ID[id]).filter(Boolean);
     order.forEach((m) => {
       const card = document.createElement('div');
-      card.className = 'card'; card.dataset.metric = m.id;
+      card.className = 'card'; card.dataset.metric = m.id; card.draggable = true;
+      attachDrag(card);
       const editable = m.threshold && m.kind !== 'text';
       const head = `<div class="c-head"><span>${mShort(m.id)}</span><button class="c-badge${editable ? ' editable' : ''}" data-badge type="button" title="${editable ? t('lp_click') : ''}"></button></div>`;
       let body = '';
@@ -284,6 +286,30 @@
       grid.appendChild(card);
     });
     applyCardStates();
+  }
+  // ---- drag-and-drop widget ordering (HTML5 DnD; order persisted in state.s.display)
+  let dragId = null;
+  function attachDrag(card) {
+    card.addEventListener('dragstart', (ev) => { dragId = card.dataset.metric; card.classList.add('dragging'); ev.dataTransfer.effectAllowed = 'move'; try { ev.dataTransfer.setData('text/plain', dragId); } catch (e) { /* ignore */ } closeLimitEditor(); });
+    card.addEventListener('dragend', () => { dragId = null; document.querySelectorAll('#metricsGrid .card').forEach((c) => c.classList.remove('dragging', 'drop-before', 'drop-after')); });
+    card.addEventListener('dragover', (ev) => {
+      if (!dragId || dragId === card.dataset.metric) return;
+      ev.preventDefault(); ev.dataTransfer.dropEffect = 'move';
+      const r = card.getBoundingClientRect();
+      const side = state.s.layout === 'side' ? (ev.clientY - r.top) / r.height : (ev.clientX - r.left) / r.width;
+      card.classList.toggle('drop-before', side < 0.5); card.classList.toggle('drop-after', side >= 0.5);
+    });
+    card.addEventListener('dragleave', () => card.classList.remove('drop-before', 'drop-after'));
+    card.addEventListener('drop', (ev) => {
+      ev.preventDefault();
+      const target = card.dataset.metric;
+      if (!dragId || dragId === target) return;
+      const after = card.classList.contains('drop-after');
+      const list = state.s.display.filter((id) => id !== dragId);
+      const idx = list.indexOf(target);
+      list.splice(after ? idx + 1 : idx, 0, dragId);
+      state.s.display = list; save(); renderSelected();
+    });
   }
   function thresholdFor(metricId, pointId) { return state.s.thresholds.find((x) => x.enabled && x.metric === metricId && (!x.pointIds.length || x.pointIds.includes(pointId))); }
 
@@ -491,7 +517,7 @@
     state.settingsDraft = JSON.parse(JSON.stringify({ thresholds: s.thresholds }));
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
-    renderTzOptions(); $('setTz').value = String(s.tz);
+    renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'strip';
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -590,13 +616,16 @@
     s.leadMin = Number($('setLead').value); s.volume = Number($('setVolume').value);
     s.sound = $('setSound').checked; s.notify = $('setNotify').checked; s.flash = $('setFlash').checked;
     s.units = { speed: $('unitSpeed').value, length: $('unitLength').value, temp: $('unitTemp').value, vis: $('unitVis').value };
-    s.display = [...document.querySelectorAll('#metricPicker input[data-mid]:checked')].map((i) => i.dataset.mid);
+    const picked = [...document.querySelectorAll('#metricPicker input[data-mid]:checked')].map((i) => i.dataset.mid);
+    s.display = [...s.display.filter((id) => picked.includes(id)), ...picked.filter((id) => !s.display.includes(id))];
+    const prevLayout = s.layout; s.layout = $('setLayout').value;
     const key = $('setApiKey').value.trim();
     if (key) { await window.bridge.setApiKey(key); state.hasKey = true; }
     if (s.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); return; }
     WA.audio.setVolume(s.volume / 100);
     applyLanguage(s.lang);
     if (prevRegion !== s.region || prevProj !== s.projection) map.setRegion(s.region, s.projection);
+    if (prevLayout !== s.layout) applyLayout();
     state.settingsDraft = null;
     save(); schedule(); setView('home');
     if (prevProvider !== s.provider || key) { state.forecasts = {}; state.quota = null; }
@@ -605,6 +634,26 @@
     if (prevProvider !== s.provider || key || !state.lastRefresh) refresh('auto');
     toast(t('settings_applied'), 'ok');
   });
+
+  // ------------------------------------------------------------------ layout
+  function applyLayout() {
+    $('viewHome').dataset.layout = state.s.layout || 'strip';
+    setTimeout(() => map && map.resize(), 0);
+  }
+
+  // ------------------------------------------------------------------ guide
+  function renderGuide(sectionId) {
+    const G = WA.GUIDE; const sections = G[I.lang()] || G.en;
+    const nav = $('guideNav'), body = $('guideBody');
+    const active = sectionId || (nav.dataset.active || sections[0].id);
+    nav.dataset.active = active;
+    nav.innerHTML = `<div class="guide-ver">${t('guide_version', { v: G.version })}</div>` + sections.map((sec) => `<button class="tab ${sec.id === active ? 'active' : ''}" data-sec="${sec.id}">${sec.title}</button>`).join('');
+    nav.querySelectorAll('[data-sec]').forEach((b) => b.addEventListener('click', () => renderGuide(b.dataset.sec)));
+    body.innerHTML = sections.map((sec) => `<section class="guide-sec" id="guide-${sec.id}"><h1 class="pane-title">${sec.title}</h1>${sec.body}</section>`).join('');
+    const target = body.querySelector(`#guide-${active}`); if (target) target.scrollIntoView({ block: 'start' });
+  }
+  $('btnGuide').addEventListener('click', () => setView('guide'));
+  $('btnGuideBack').addEventListener('click', () => setView('home'));
 
   // ------------------------------------------------------------------ language
   function applyLanguage(lang) {
@@ -622,12 +671,19 @@
     map = WA.map.createMap($('map'), {
       onSelect: select,
       onMapClick: (ll) => { if (state.view === 'home' && state.s.points.length < MAX_POINTS) openAddPoint(ll); },
-      onHover: (ll) => { $('coordReadout').textContent = `${U.fmtLat(ll.lat)} ${U.fmtLon(ll.lon)}`; },
+      onHover: (ll) => {
+        const txt = `${U.fmtLat(ll.lat)} ${U.fmtLon(ll.lon)}`;
+        $('coordReadout').textContent = txt;
+        const tag = $('cursorTag'); tag.hidden = false; tag.textContent = txt;
+        tag.style.left = `${ll.px + 14}px`; tag.style.top = `${ll.py + 14}px`;
+      },
+      onLeave: () => { $('cursorTag').hidden = true; },
       loadData: (dataset, res) => window.bridge.loadMapData(dataset, res),
       onLod: () => renderMapStates(),
       onGrid: (step) => { const m = Math.round(step * 60); $('gridText').textContent = step >= 1 ? `${step}°` : `${m}'`; renderMapStates(); }
     });
     map.setRegion(state.s.region, state.s.projection);
+    applyLayout();
     if (state.s.points.length && !state.selectedId) state.selectedId = state.s.points[0].id;
     tickClock(); setInterval(tickClock, 1000);
     renderAll(); schedule(); refresh('auto');

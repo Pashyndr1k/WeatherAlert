@@ -7,7 +7,9 @@
   const EN = {
     // topbar / views
     brand_sub: 'MARITIME THRESHOLD WATCH', crumb_alarms: '/ ACTIVE ALARMS', crumb_settings: '/ SETTINGS',
-    btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
+    btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_hlp: 'HLP', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
+    crumb_guide: '/ USER GUIDE', tip_guide: 'User guide', guide_version: 'GUIDE FOR VERSION {v}',
+    layout_title: 'WIDGET LAYOUT', layout_strip: 'Bottom strip (map-first)', layout_side: 'Right panel (classic, two columns)', layout_hint: 'Drag any widget to reorder; the order is kept in both layouts.',
     tip_mute: 'Mute / unmute audible alerts', tip_refresh: 'Refresh now', tip_settings: 'Settings', tip_alarms: 'Active alarms',
     quota_calls: 'QUOTA {n} CALLS/REFRESH', quota_sg: 'QUOTA {used}/{quota}', quota_nokey: 'NO API KEY',
     refresh_none: 'NOT YET REFRESHED', refresh_failed: 'REFRESH FAILED', refresh_at: 'REFRESH {t} · NEXT {n}',
@@ -77,7 +79,9 @@
 
   const UK = {
     brand_sub: 'МОРСЬКИЙ КОНТРОЛЬ ПОРОГІВ', crumb_alarms: '/ АКТИВНІ ТРИВОГИ', crumb_settings: '/ НАЛАШТУВАННЯ',
-    btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
+    btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_hlp: 'ДОВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
+    crumb_guide: '/ ДОВІДНИК', tip_guide: 'Довідник користувача', guide_version: 'ДОВІДНИК ДЛЯ ВЕРСІЇ {v}',
+    layout_title: 'РОЗКЛАДКА ВІДЖЕТІВ', layout_strip: 'Нижня смуга (карта на весь екран)', layout_side: 'Права панель (класична, два стовпці)', layout_hint: 'Перетягуйте віджети, щоб змінити порядок; він зберігається в обох розкладках.',
     tip_mute: 'Вимкнути / увімкнути звукові сповіщення', tip_refresh: 'Оновити зараз', tip_settings: 'Налаштування', tip_alarms: 'Активні тривоги',
     quota_calls: 'КВОТА {n} ЗАПИТІВ/ОНОВЛЕННЯ', quota_sg: 'КВОТА {used}/{quota}', quota_nokey: 'НЕМАЄ API-КЛЮЧА',
     refresh_none: 'ЩЕ НЕ ОНОВЛЕНО', refresh_failed: 'ПОМИЛКА ОНОВЛЕННЯ', refresh_at: 'ОНОВЛЕНО {t} · НАСТУПНЕ {n}',

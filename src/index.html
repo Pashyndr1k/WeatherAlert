@@ -29,6 +29,10 @@
           <button class="sq-btn" id="btnRefresh" data-i18n="btn_rfr" data-i18n-title="tip_refresh">RFR</button>
           <button class="sq-btn" id="btnAlarmsView" data-i18n="btn_alm" data-i18n-title="tip_alarms">ALM</button>
           <button class="sq-btn" id="btnSettings" data-i18n="btn_set" data-i18n-title="tip_settings">SET</button>
+          <button class="sq-btn" id="btnGuide" data-i18n="btn_hlp" data-i18n-title="tip_guide">HLP</button>
+        </div>
+        <div class="tb-buttons" id="guideButtons" hidden>
+          <button class="lbl-btn" id="btnGuideBack">← MAP</button>
         </div>
         <div class="tb-buttons" id="settingsButtons" hidden>
           <button class="lbl-btn" id="btnCancelSettings" data-i18n="btn_cancel">CANCEL</button>
@@ -62,6 +66,7 @@
         </div>
 
         <div class="map-hint" id="mapHint" data-i18n="hint_click">CLICK THE MAP TO ADD A TRACKING POINT</div>
+        <div class="cursor-tag" id="cursorTag" hidden></div>
 
         <div class="readout">
           <div id="readoutMeta">—</div>
@@ -107,6 +112,12 @@
         <div class="tl-axis" id="tlAxis"></div>
         <div class="note-box" data-i18n="engine_note"></div>
       </div>
+    </main>
+
+    <!-- ================= GUIDE ================= -->
+    <main class="view view-guide" id="viewGuide" hidden>
+      <nav class="tab-rail" id="guideNav"></nav>
+      <div class="pane-wrap guide-body" id="guideBody"></div>
     </main>
 
     <!-- ================= SETTINGS ================= -->
@@ -158,6 +169,10 @@
             </label>
             <label class="field"><span data-i18n="projection">PROJECTION</span>
               <select id="setProjection"><option value="mercator" data-i18n="proj_opt_merc"></option><option value="albers" data-i18n="proj_opt_albers"></option></select>
+            </label>
+            <label class="field"><span data-i18n="layout_title">WIDGET LAYOUT</span>
+              <select id="setLayout"><option value="strip" data-i18n="layout_strip"></option><option value="side" data-i18n="layout_side"></option></select>
+              <small class="hint" data-i18n="layout_hint"></small>
             </label>
           </div>
           <div class="note-box" data-i18n="map_note"></div>
@@ -246,6 +261,7 @@
   <script src="providers.js"></script>
   <script src="dev-shim.js"></script>
   <script src="js/i18n.js"></script>
+  <script src="js/guide.js"></script>
   <script src="js/units.js"></script>
   <script src="js/alarms.js"></script>
   <script src="js/audio.js"></script>

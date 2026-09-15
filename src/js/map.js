@@ -274,8 +274,9 @@
     svg.on('mousemove', (ev) => {
       const [px, py] = d3.pointer(ev, svg.node());
       const ll = projection.invert(transform.invert([px, py]));
-      if (ll && handlers.onHover) handlers.onHover({ lon: ll[0], lat: ll[1] });
+      if (ll && handlers.onHover) handlers.onHover({ lon: ll[0], lat: ll[1], px, py });
     });
+    svg.on('mouseleave', () => { if (handlers.onLeave) handlers.onLeave(); });
 
     new ResizeObserver(() => resize()).observe(container);
     resize();

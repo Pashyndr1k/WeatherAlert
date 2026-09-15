@@ -1,7 +1,7 @@
 {
   "name": "weatheralert",
   "productName": "WeatherAlert",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Maritime weather tracking and threshold alarms for ship captains (Europe & Asia)",
   "main": "main.js",
   "private": true,
@@ -10,7 +10,7 @@
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "test": "node test/engine.test.js"
+    "test": "node test/engine.test.js && node test/guide.test.js"
   },
   "author": "WeatherAlert",
   "license": "MIT",

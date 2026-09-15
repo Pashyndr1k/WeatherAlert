@@ -16,6 +16,10 @@ with a left tab rail. Rajdhani + IBM Plex Mono are bundled in `assets/fonts` for
 **Languages:** English and Ukrainian (Settings → Alerts & units → Language); every label, metric
 name, alarm text and settings copy is translated in `src/js/i18n.js`.
 
+## In-app guide
+
+Press **HLP** in the top bar for the built-in user guide (English / Ukrainian). Its content lives in `src/js/guide.js`; `test/guide.test.js` fails whenever the guide version differs from `package.json`, so every version bump requires a guide update (revise the affected sections and add a "What's new" entry).
+
 ## Features
 
 - **Accurate vector map of the Black Sea & Sea of Azov** — GSHHG v2.3.7 shoreline (NOAA / University of Hawaii, WGS84) clipped to 25–44°E, 38.5–49.5°N, with lakes, rivers and national borders from WDBII. Five native levels of detail; the app switches intermediate → high → full (≈ 100 m) as you zoom, with a lat/lon grid that steps from 10° down to 5' and labelled edges. Mercator (default) or Albers equal-area conic with standard parallels 46°15'N / 41°15'N to match the reference chart. 27 port labels. A Europe & Asia overview (Natural Earth 50 m) is still available in Settings → Map.
