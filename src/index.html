@@ -23,7 +23,7 @@
         <div class="status" id="pillRefresh"><span id="refreshText">—</span></div>
       </div>
       <div class="topbar-right">
-        <div class="clock" id="clockUtc"><span id="clockHm">--:--</span><span class="sec" id="clockS">:--</span> <span class="utc">UTC</span></div>
+        <div class="clock" id="clockUtc"><span id="clockHm">--:--</span><span class="sec" id="clockS">:--</span> <span class="utc" id="clockZone">UTC</span></div>
         <div class="tb-buttons" id="homeButtons">
           <button class="sq-btn" id="btnMute" data-i18n="btn_snd" data-i18n-title="tip_mute">SND</button>
           <button class="sq-btn" id="btnRefresh" data-i18n="btn_rfr" data-i18n-title="tip_refresh">RFR</button>
@@ -216,6 +216,7 @@
           <h2 class="sub-h" data-i18n="language_title">LANGUAGE</h2>
           <div class="field-row">
             <label class="field"><span data-i18n="language_title"></span><select id="setLang"><option value="en">English</option><option value="uk">Українська</option></select></label>
+            <label class="field"><span data-i18n="tz_title"></span><select id="setTz"></select><small class="hint" data-i18n="tz_hint"></small></label>
           </div>
         </section>
       </div>

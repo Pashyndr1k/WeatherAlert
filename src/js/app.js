@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en',
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180,
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -52,7 +52,13 @@
 
   // ------------------------------------------------------------------ helpers
   const pad2 = (n) => String(n).padStart(2, '0');
-  const fmtTime = (ms) => new Date(ms).toISOString().slice(11, 16) + 'Z';
+  // ---- time zone: state.s.tz is an offset in minutes from UTC, or 'local' for the OS zone
+  function tzOffset() { return state.s.tz === 'local' ? -new Date().getTimezoneOffset() : Number(state.s.tz) || 0; }
+  function tzSuffix() { const o = tzOffset(); if (o === 0) return 'Z'; const a = Math.abs(o); return `${o < 0 ? '−' : '+'}${pad2(Math.floor(a / 60))}${a % 60 ? ':' + pad2(a % 60) : ''}`; }
+  function tzLabel(o) { if (o === 0) return 'UTC'; const a = Math.abs(o); return `UTC${o < 0 ? '−' : '+'}${Math.floor(a / 60)}${a % 60 ? ':' + pad2(a % 60) : ''}`; }
+  function shifted(ms) { return new Date(ms + tzOffset() * 60e3); }
+  const fmtClock = (ms) => { const d = shifted(ms); return `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; };
+  const fmtTime = (ms) => fmtClock(ms) + tzSuffix();
   const fmtEta = (ms) => { const m = Math.max(0, Math.round(ms / 60e3)); return m >= 60 ? t('eta_hm', { h: Math.floor(m / 60), m: pad2(m % 60) }) : t('eta_m', { m }); };
   const fmtEtaClock = (ms) => { const m = Math.max(0, Math.round(ms / 60e3)); return `${pad2(Math.floor(m / 60))}:${pad2(m % 60)}`; };
   function toast(msg, kind = '') {
@@ -99,9 +105,10 @@
 
   // ------------------------------------------------------------------ clock
   function tickClock() {
-    const d = new Date();
+    const d = shifted(Date.now());
     $('clockHm').textContent = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     $('clockS').textContent = `:${pad2(d.getUTCSeconds())}`;
+    $('clockZone').textContent = tzLabel(tzOffset());
     if (state.lastRefresh) {
       const next = state.lastRefresh + state.s.refreshMin * 60e3;
       $('refreshText').textContent = t('refresh_at', { t: fmtTime(state.lastRefresh), n: fmtTime(next) });
@@ -366,17 +373,17 @@
     const now = Date.now(), lead = state.s.leadMin * 60e3, H = 320;
     const mk = (top, cls, txt) => { const e = document.createElement('div'); e.className = cls; e.style.top = `${top}px`; e.textContent = txt; axis.appendChild(e); };
     const tick = (top) => { const e = document.createElement('div'); e.className = 'tick'; e.style.top = `${top}px`; axis.appendChild(e); };
-    tick(0); mk(0, 'tm now', fmtTime(now).replace('Z', ''));
+    tick(0); mk(0, 'tm now', fmtClock(now));
     let lastTop = -100;
     state.alarms.slice(0, 8).forEach((a) => {
       const p = pointById(a.pointId); const top = Math.min(H - 8, (a.eta / lead) * H);
       const lim = fmtMetric(a.metric, a.limit);
       tick(top);
-      if (a.eta > 0 && top - lastTop > 14) mk(top, 'tm', fmtTime(a.at).replace('Z', ''));
+      if (a.eta > 0 && top - lastTop > 14) mk(top, 'tm', fmtClock(a.at));
       mk(top + (a.eta === 0 ? 0 : 0), `ev ${a.level}`, `${a.level === 'critical' ? '●' : '▲'} ${(p ? p.name : '').toUpperCase()} · ${mShort(a.metric)} ${a.level === 'critical' ? t('exceeded') : `${opSym(a.op)} ${lim.text} ${lim.unit}`}`);
       lastTop = top;
     });
-    tick(H); mk(H, 'tm end', fmtTime(now + lead).replace('Z', '')); mk(H, 'ev end', t('lead_end'));
+    tick(H); mk(H, 'tm end', fmtClock(now + lead)); mk(H, 'ev end', t('lead_end'));
   }
 
   // ------------------------------------------------------------------ points
@@ -462,11 +469,21 @@
     pop.querySelector('.lp-cancel').addEventListener('click', closeLimitEditor);
     pop.querySelector('.lp-remove').addEventListener('click', () => { state.s.thresholds = state.s.thresholds.filter((x) => x !== existing); save(); closeLimitEditor(); evaluateAlarms(); renderAll(); toast(t('lp_removed', { m: mLabel(metricId) })); });
     pop.addEventListener('click', (ev) => ev.stopPropagation());
-    card.appendChild(pop); card.classList.add('editing');
+    // Render above the strip in a fixed layer: the strip clips overflow, so an in-card popover is invisible.
+    const r = card.getBoundingClientRect();
+    const w = Math.max(300, r.width);
+    pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+    pop.style.width = `${w}px`;
+    pop.style.bottom = `${window.innerHeight - r.top + 6}px`;
+    document.body.appendChild(pop); card.classList.add('editing');
     setTimeout(() => { val.focus(); val.select(); }, 30);
     setTimeout(() => document.addEventListener('click', closeLimitEditor, { once: true }), 0);
+    $('metricsGrid').addEventListener('scroll', closeLimitEditor, { once: true });
   }
-  function closeLimitEditor() { document.querySelectorAll('.limit-pop').forEach((el) => { el.parentElement.classList.remove('editing'); el.remove(); }); }
+  function closeLimitEditor() {
+    document.querySelectorAll('.limit-pop').forEach((el) => el.remove());
+    document.querySelectorAll('#metricsGrid .card.editing').forEach((el) => el.classList.remove('editing'));
+  }
 
   // ------------------------------------------------------------------ settings view
   function openSettings() {
@@ -474,6 +491,7 @@
     state.settingsDraft = JSON.parse(JSON.stringify({ thresholds: s.thresholds }));
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
+    renderTzOptions(); $('setTz').value = String(s.tz);
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -494,8 +512,14 @@
   $('setVolume').addEventListener('input', () => { $('setVolumeOut').textContent = `${$('setVolume').value} %`; WA.audio.setVolume($('setVolume').value / 100); });
   $('btnTestWarn').addEventListener('click', () => WA.audio.play('warning'));
   $('btnTestCrit').addEventListener('click', () => WA.audio.play('critical'));
-  $('setLang').addEventListener('change', () => { applyLanguage($('setLang').value); renderMetricPicker(); renderThresholdList(); renderThresholdAdd(); renderBudget(); });
+  $('setLang').addEventListener('change', () => { applyLanguage($('setLang').value); renderMetricPicker(); renderThresholdList(); renderThresholdAdd(); renderBudget(); const cur = $('setTz').value; renderTzOptions(); $('setTz').value = cur; });
 
+  function renderTzOptions() {
+    const sel = $('setTz');
+    const localOff = -new Date().getTimezoneOffset();
+    const offs = [-720, -660, -600, -570, -540, -480, -420, -360, -300, -240, -210, -180, -120, -60, 0, 60, 120, 180, 210, 240, 270, 300, 330, 345, 360, 390, 420, 480, 540, 570, 600, 630, 660, 720, 765, 780, 840];
+    sel.innerHTML = `<option value="local">${t('tz_local', { z: tzLabel(localOff) })}</option>` + offs.map((o) => `<option value="${o}">${tzLabel(o)}${o === 180 ? ' — ' + t('tz_default') : ''}</option>`).join('');
+  }
   function renderBudget() {
     const prov = $('setProvider').value, every = Number($('setRefresh').value), n = Math.max(1, state.s.points.length), perDay = Math.round(1440 / every);
     const box = $('budgetBox');
@@ -562,6 +586,7 @@
     const prevRegion = s.region, prevProj = s.projection, prevProvider = s.provider, prevUnits = JSON.stringify(s.units);
     s.provider = $('setProvider').value; s.refreshMin = Number($('setRefresh').value); s.sgSource = $('setSgSource').value;
     s.region = $('setRegion').value; s.projection = $('setProjection').value; s.lang = $('setLang').value;
+    s.tz = $('setTz').value === 'local' ? 'local' : Number($('setTz').value);
     s.leadMin = Number($('setLead').value); s.volume = Number($('setVolume').value);
     s.sound = $('setSound').checked; s.notify = $('setNotify').checked; s.flash = $('setFlash').checked;
     s.units = { speed: $('unitSpeed').value, length: $('unitLength').value, temp: $('unitTemp').value, vis: $('unitVis').value };

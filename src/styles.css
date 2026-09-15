@@ -162,11 +162,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .card.warning .c-badge, .card.warning .c-val { color: var(--warn); }
 .card.critical { border-left-color: var(--accent); background: var(--tint-r06); }
 .card.critical .c-badge, .card.critical .c-val { color: var(--crit); }
-.card.editing { overflow: visible; z-index: 5; }
+.card.editing { border-left-color: var(--accent); }
 .card.placeholder { justify-content: center; color: var(--text-4); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; }
 
 /* limit popover (opens upward from the strip) */
-.limit-pop { position: absolute; left: -2px; right: 0; bottom: calc(100% + 1px); z-index: 20; background: var(--bg); border: 1px solid var(--accent); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; text-transform: none; letter-spacing: 0; }
+.limit-pop { position: fixed; z-index: 60; background: var(--bg); border: 1px solid var(--accent); padding: 12px; display: flex; flex-direction: column; gap: 10px; min-width: 260px; text-transform: none; letter-spacing: 0; }
 .limit-pop .lp-title { font-size: 10px; letter-spacing: .14em; color: var(--text-4); text-transform: uppercase; }
 .limit-pop .lp-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px; align-items: center; }
 .limit-pop .lp-unit { font-size: 11px; color: var(--text-3); }

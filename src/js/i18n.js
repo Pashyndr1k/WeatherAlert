@@ -50,6 +50,7 @@
     units_title: 'UNITS', unit_speed: 'WIND & CURRENT SPEED', unit_height: 'HEIGHTS', unit_temp: 'TEMPERATURE', unit_vis: 'VISIBILITY',
     u_kn: 'knots', u_ms: 'm/s', u_kmh: 'km/h', u_m: 'metres', u_ft: 'feet', u_nm: 'nautical miles', u_km: 'kilometres',
     language_title: 'LANGUAGE', lang_en: 'English', lang_uk: 'Українська',
+    tz_title: 'TIME ZONE', tz_local: 'System local ({z})', tz_default: 'default', tz_hint: 'Applies to the clock and every displayed time (refresh, ETA, timeline). Forecast data stays in UTC internally.',
     sg_needs_key: 'Stormglass needs an API key.', settings_applied: 'Settings applied',
     // add point
     add_title: 'ADD TRACKING POINT', name_label: 'NAME', name_ph: 'e.g. Kerch approach', coords_label: 'COORDINATES (WGS84)',
@@ -116,6 +117,7 @@
     units_title: 'ОДИНИЦІ', unit_speed: 'ШВИДКІСТЬ ВІТРУ Й ТЕЧІЇ', unit_height: 'ВИСОТИ', unit_temp: 'ТЕМПЕРАТУРА', unit_vis: 'ВИДИМІСТЬ',
     u_kn: 'вузли', u_ms: 'м/с', u_kmh: 'км/год', u_m: 'метри', u_ft: 'фути', u_nm: 'морські милі', u_km: 'кілометри',
     language_title: 'МОВА', lang_en: 'English', lang_uk: 'Українська',
+    tz_title: 'ЧАСОВИЙ ПОЯС', tz_local: 'Системний ({z})', tz_default: 'типово', tz_hint: 'Застосовується до годинника та всіх відображуваних часів (оновлення, ETA, хронологія). Дані прогнозу зберігаються в UTC.',
     sg_needs_key: 'Для Stormglass потрібен API-ключ.', settings_applied: 'Налаштування застосовано',
     add_title: 'ДОДАТИ ТОЧКУ', name_label: 'НАЗВА', name_ph: 'напр. Підхід до Керчі', coords_label: 'КООРДИНАТИ (WGS84)',
     coords_ph: "45.25, 36.55  ·  45°15'N 036°33'E  ·  45 15 0 N 36 33 0 E",
