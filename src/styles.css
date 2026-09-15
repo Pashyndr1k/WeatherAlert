@@ -67,11 +67,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .view-home { display: grid; grid-template-rows: 1fr 148px; }
 
 /* ---------- map ---------- */
-.map-wrap { position: relative; overflow: hidden; background-color: var(--bg); background-image: linear-gradient(var(--tint-g045) 1px, transparent 1px), linear-gradient(90deg, var(--tint-g045) 1px, transparent 1px); background-size: 120px 120px; }
+.map-wrap { position: relative; overflow: hidden; background-color: var(--bg); }
 .map { position: absolute; inset: 0; }
 .map-svg { display: block; cursor: crosshair; }
 .map-svg .sea { fill: transparent; }
-.map-svg .graticule path { fill: none; stroke: var(--tint-g045); }
+.map-svg .graticule path { fill: none; stroke: rgba(216,216,212,.07); }
 .map-svg .land path { fill: var(--land); stroke: var(--line-3); stroke-linejoin: round; }
 .map-svg .lakes path { fill: var(--bg); stroke: var(--text-dim2); }
 .map-svg .rivers path { fill: none; stroke: #2c2e34; }
