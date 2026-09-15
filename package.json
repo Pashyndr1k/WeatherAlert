@@ -1,0 +1,95 @@
+{
+  "name": "weatheralert",
+  "productName": "WeatherAlert",
+  "version": "0.1.0",
+  "description": "Maritime weather tracking and threshold alarms for ship captains (Europe & Asia)",
+  "main": "main.js",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "test": "node test/engine.test.js"
+  },
+  "author": "WeatherAlert",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
+    "topojson-server": "^3.0.1",
+    "topojson-simplify": "^3.0.3"
+  },
+  "dependencies": {
+    "d3": "^7.9.0",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
+  },
+  "build": {
+    "appId": "io.weatheralert.desktop",
+    "productName": "WeatherAlert",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "src/**/*",
+      "node_modules/d3/dist/d3.min.js",
+      "node_modules/topojson-client/dist/topojson-client.min.js",
+      "node_modules/world-atlas/countries-50m.json",
+      "!scratch",
+      "!docs",
+      "!test",
+      "assets/blacksea/blacksea_*.json",
+      "!assets/blacksea/*.geojson",
+      "!tools",
+      "assets/icon*.png",
+      "assets/icon.ico"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "assets/icon.png",
+      "category": "public.app-category.weather"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Pashyndr1k/WeatherAlert.git"
+  },
+  "homepage": "https://github.com/Pashyndr1k/WeatherAlert"
+}
