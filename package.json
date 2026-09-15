@@ -45,7 +45,8 @@
       "!assets/blacksea/*.geojson",
       "!tools",
       "assets/icon*.png",
-      "assets/icon.ico"
+      "assets/icon.ico",
+      "assets/fonts/**"
     ],
     "asar": true,
     "win": {
