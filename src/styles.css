@@ -215,6 +215,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .card.critical { border-left-color: var(--accent); background: var(--tint-r06); }
 .card.critical .c-badge, .card.critical .c-val { color: var(--crit); }
 .card.editing { border-left-color: var(--accent); }
+.card { transition: background .15s, outline-color .12s; outline: 1px solid transparent; outline-offset: -1px; }
+.card:hover { outline-color: var(--line-3); }
+.card.wc-value .c-val { color: var(--wc); }
+.card.wc-value .c-badge { color: var(--wc); }
+.card.wc-bg { background: var(--wc-bg); border-left-color: var(--wc); }
+.card.wc-bg .c-badge { color: var(--wc); }
 .card[draggable="true"] { cursor: grab; }
 .card.dragging { opacity: .35; cursor: grabbing; }
 .card.drop-before { box-shadow: inset 2px 0 0 var(--accent); }

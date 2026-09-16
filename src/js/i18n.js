@@ -8,6 +8,7 @@
     // topbar / views
     brand_sub: 'MARITIME THRESHOLD WATCH', crumb_alarms: '/ ACTIVE ALARMS', crumb_settings: '/ SETTINGS',
     btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_hlp: 'HLP', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
+    wc_title: 'WIDGET COLOUR', wc_off: 'Off', wc_value: 'Colour the main number', wc_bg: 'Colour the widget background', wc_hint: 'Green far below the limit, amber approaching it, red at or beyond it. Only widgets with a limit are coloured; alarm states still take precedence.',
     tip_provider: 'Choose the data provider', layer_depth: 'Depth bands (ETOPO 2022)', layer_currents: 'Surface currents (Open-Meteo marine model)', currents_meta: 'CURRENTS {t} · {n} PTS', currents_loading: 'CURRENTS LOADING', provider_switched: 'Provider: {p}', remove_point_tip: 'Remove point',
     crit_title: 'CRITICAL THRESHOLDS', crit_summary: '{c} EXCEEDED · {w} WITHIN LEAD', crit_raised: 'RAISED', crit_col_point: 'POINT · METRIC · RULE', crit_col_status: 'STATUS',
     crit_exceeded: 'EXCEEDED', crit_peak: 'PEAK {v} @ {t}', crit_eta: 'ETA {eta} · {t}', crit_now: 'NOW {v} · LEAD {lead}', crit_status_on: 'SIREN REPEATING · OS NOTIFY SENT', crit_status_muted: 'SIREN MUTED · OS NOTIFY SENT',
@@ -84,6 +85,7 @@
   const UK = {
     brand_sub: 'МОРСЬКИЙ КОНТРОЛЬ ПОРОГІВ', crumb_alarms: '/ АКТИВНІ ТРИВОГИ', crumb_settings: '/ НАЛАШТУВАННЯ',
     btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_hlp: 'ДОВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
+    wc_title: 'КОЛІР ВІДЖЕТІВ', wc_off: 'Вимкнено', wc_value: 'Забарвлювати головне число', wc_bg: 'Забарвлювати фон віджета', wc_hint: 'Зелений — далеко від межі, жовтий — наближення, червоний — на межі або за нею. Забарвлюються лише віджети з межею; стани тривог мають пріоритет.',
     tip_provider: 'Обрати постачальника даних', layer_depth: 'Глибини (ETOPO 2022)', layer_currents: 'Поверхневі течії (морська модель Open-Meteo)', currents_meta: 'ТЕЧІЇ {t} · {n} ТЧК', currents_loading: 'ЗАВАНТАЖЕННЯ ТЕЧІЙ', provider_switched: 'Джерело: {p}', remove_point_tip: 'Видалити точку',
     crit_title: 'КРИТИЧНІ ПОРОГИ', crit_summary: '{c} ПЕРЕВИЩЕНО · {w} У МЕЖАХ УПЕРЕДЖЕННЯ', crit_raised: 'ПОДАНО', crit_col_point: 'ТОЧКА · ПОКАЗНИК · ПРАВИЛО', crit_col_status: 'СТАТУС',
     crit_exceeded: 'ПЕРЕВИЩЕНО', crit_peak: 'ПІК {v} @ {t}', crit_eta: 'ЧЕРЕЗ {eta} · {t}', crit_now: 'ЗАРАЗ {v} · УПЕРЕДЖ {lead}', crit_status_on: 'СИРЕНА ПОВТОРЮЄТЬСЯ · СПОВІЩЕННЯ ОС НАДІСЛАНО', crit_status_muted: 'СИРЕНУ ВИМКНЕНО · СПОВІЩЕННЯ ОС НАДІСЛАНО',

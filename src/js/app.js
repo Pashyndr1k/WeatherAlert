@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true },
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true }, widgetColor: 'value',
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -347,15 +347,52 @@
     }
   }
 
+  // Ratio 0..1+ of how close a value is to its limit (1 = at the limit, >1 = exceeded); null when no limit or value.
+  function limitRatio(metricId, value, th) {
+    if (!th || value === null || value === undefined || Number.isNaN(value)) return null;
+    if (th.op === 'gte') return th.value > 0 ? value / th.value : (value >= th.value ? 1 : 0);
+    // "falls to": closeness grows as the value drops towards the limit (visibility, pressure tendency…)
+    if (th.value > 0) return value <= 0 ? 1.2 : th.value / value;
+    if (th.value < 0) return value >= 0 ? 0 : value / th.value; // both negative (e.g. −4 hPa/3h)
+    return value <= 0 ? 1 : 0;
+  }
+  // App palette only: green (ok) → amber (warning) → red (critical)
+  function gradeColor(r) {
+    const ok = [126, 224, 129], warn = [240, 178, 58], crit = [255, 107, 98];
+    const mix = (a, b, f) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
+    let c;
+    if (r <= 0.3) c = ok;
+    else if (r < 0.7) c = mix(ok, warn, (r - 0.3) / 0.4);
+    else if (r < 1) c = mix(warn, crit, (r - 0.7) / 0.3);
+    else c = crit;
+    return c;
+  }
   function applyCardStates() {
     const p = pointById(state.selectedId);
     if (!p) return;
+    const v = currentValues(p.id);
+    const mode = state.s.widgetColor || 'off';
     document.querySelectorAll('#metricsGrid .card').forEach((card) => {
       const id = card.dataset.metric;
       const al = state.alarms.filter((a) => a.pointId === p.id && a.metric === id);
       const crit = al.find((a) => a.level === 'critical'), warn = al.find((a) => a.level === 'warning');
       card.classList.toggle('critical', Boolean(crit));
       card.classList.toggle('warning', !crit && Boolean(warn));
+      // value-graded colouring
+      card.classList.remove('wc-value', 'wc-bg');
+      card.style.removeProperty('--wc'); card.style.removeProperty('--wc-bg');
+      const thc = thresholdFor(id, p.id);
+      if (mode !== 'off' && thc && v && !crit) {
+        const val = id === 'd_pressureTendency' ? v.d_pressureTendency : id.startsWith('d_') ? U.derivedValue(id, v, p.lat) : v[id];
+        const r = limitRatio(id, val, thc);
+        if (r !== null) {
+          const [cr, cg, cb] = gradeColor(r);
+          const alpha = (0.06 + Math.min(1, Math.max(0, r)) * 0.22).toFixed(2);
+          card.style.setProperty('--wc', `rgb(${cr},${cg},${cb})`);
+          card.style.setProperty('--wc-bg', `rgba(${cr},${cg},${cb},${alpha})`);
+          card.classList.add(mode === 'bg' ? 'wc-bg' : 'wc-value');
+        }
+      }
       const badge = card.querySelector('[data-badge]');
       if (!badge) return;
       const th = thresholdFor(id, p.id);
@@ -624,7 +661,7 @@
     state.settingsDraft = JSON.parse(JSON.stringify({ thresholds: s.thresholds }));
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
-    renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side';
+    renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side'; $('setWidgetColor').value = s.widgetColor || 'off';
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -725,7 +762,7 @@
     s.units = { speed: $('unitSpeed').value, length: $('unitLength').value, temp: $('unitTemp').value, vis: $('unitVis').value };
     const picked = [...document.querySelectorAll('#metricPicker input[data-mid]:checked')].map((i) => i.dataset.mid);
     s.display = [...s.display.filter((id) => picked.includes(id)), ...picked.filter((id) => !s.display.includes(id))];
-    const prevLayout = s.layout; s.layout = $('setLayout').value;
+    const prevLayout = s.layout; s.layout = $('setLayout').value; s.widgetColor = $('setWidgetColor').value;
     const key = $('setApiKey').value.trim();
     if (key) { await window.bridge.setApiKey(key); state.hasKey = true; }
     if (s.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); return; }
