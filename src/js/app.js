@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true, ais: false }, widgetColor: 'value', ai: { enabled: false, model: 'google_weathernext2_ensemble', horizonH: 24 },
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true, ais: false }, currentsDensity: 'medium', widgetColor: 'value', ai: { enabled: false, model: 'google_weathernext2_ensemble', horizonH: 24 },
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -680,6 +680,7 @@
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
     renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side'; $('setWidgetColor').value = s.widgetColor || 'off';
+    $('setCurrentsDensity').value = s.currentsDensity || 'medium'; renderDensityHint();
     $('setAiEnabled').checked = Boolean(s.ai.enabled); $('setAiModel').value = s.ai.model; $('setAiHorizon').value = String(s.ai.horizonH || 24);
     $('setAisEnabled').checked = Boolean(s.layers.ais); $('setAisKey').value = ''; $('setAisKey').placeholder = state.ais.hasKey ? t('apikey_stored') : t('ais_key_ph');
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
@@ -710,6 +711,12 @@
     const offs = [-720, -660, -600, -570, -540, -480, -420, -360, -300, -240, -210, -180, -120, -60, 0, 60, 120, 180, 210, 240, 270, 300, 330, 345, 360, 390, 420, 480, 540, 570, 600, 630, 660, 720, 765, 780, 840];
     sel.innerHTML = `<option value="local">${t('tz_local', { z: tzLabel(localOff) })}</option>` + offs.map((o) => `<option value="${o}">${tzLabel(o)}${o === 180 ? ' — ' + t('tz_default') : ''}</option>`).join('');
   }
+  function renderDensityHint() {
+    const key = $('setCurrentsDensity').value; const d = DENSITY[key] || DENSITY.medium;
+    const n = latticeFor(key).length;
+    $('densityHint').textContent = t('density_hint', { n, h: d.hours, calls: n * Math.round(24 / d.hours) });
+  }
+  $('setCurrentsDensity').addEventListener('change', renderDensityHint);
   function renderBudget() {
     const prov = $('setProvider').value, every = Number($('setRefresh').value), n = Math.max(1, state.s.points.length), perDay = Math.round(1440 / every);
     const box = $('budgetBox');
@@ -788,6 +795,7 @@
     const aisKey = $('setAisKey').value.trim();
     if (aisKey) { await window.bridge.aisSetKey(aisKey); state.ais.hasKey = true; }
     const prevAis = Boolean(s.layers.ais); s.layers.ais = $('setAisEnabled').checked;
+    const prevDensity = s.currentsDensity; s.currentsDensity = $('setCurrentsDensity').value;
     const key = $('setApiKey').value.trim();
     if (key) { await window.bridge.setApiKey(key); state.hasKey = true; }
     if (s.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); return; }
@@ -797,6 +805,7 @@
     if (prevLayout !== s.layout) applyLayout();
     if (prevAi !== JSON.stringify(s.ai)) { state.ens = {}; if (s.ai.enabled) refreshEnsemble(); else applyCardStates(); }
     if (prevAis !== s.layers.ais || aisKey) applyAis();
+    if (prevDensity !== s.currentsDensity && s.layers.currents) refreshCurrents(true);
     state.settingsDraft = null;
     save(); schedule(); setView('home');
     if (prevProvider !== s.provider || key) { state.forecasts = {}; state.quota = null; }
@@ -855,19 +864,23 @@
   }
   $('btnLayerDepth').addEventListener('click', () => { state.s.layers.depth = !state.s.layers.depth; save(); applyLayers(); });
   $('btnLayerCurrents').addEventListener('click', () => { state.s.layers.currents = !state.s.layers.currents; save(); applyLayers(); });
-  // Lattice of sea points over the map window (≈1° × 0.6°), masked by the 0 m depth band.
-  function currentsLattice() {
-    const r = map.region(); const pts = [];
-    for (let lat = r.latMin + 0.3; lat < r.latMax; lat += 0.6) for (let lon = r.lonMin + 0.5; lon < r.lonMax; lon += 1.0) if (map.isSea(lon, lat)) pts.push({ lat: +lat.toFixed(3), lon: +lon.toFixed(3) });
+  // Lattice of sea points over the map window, masked by the 0 m depth band. Density is a setting:
+  // coarse ~1.0x0.6 deg (~90 pts), medium ~0.5x0.3 (~360), fine ~0.25x0.15 (~1400). Each point is one API call.
+  const DENSITY = { coarse: { dlon: 1.0, dlat: 0.6, hours: 3, scale: 1 }, medium: { dlon: 0.5, dlat: 0.3, hours: 3, scale: 0.7 }, fine: { dlon: 0.25, dlat: 0.15, hours: 6, scale: 0.5 } };
+  function densityCfg() { return DENSITY[state.s.currentsDensity] || DENSITY.medium; }
+  function latticeFor(key) {
+    const r = map.region(); const d = DENSITY[key] || DENSITY.medium; const pts = [];
+    for (let lat = r.latMin + d.dlat / 2; lat < r.latMax; lat += d.dlat) for (let lon = r.lonMin + d.dlon / 2; lon < r.lonMax; lon += d.dlon) if (map.isSea(lon, lat)) pts.push({ lat: +lat.toFixed(3), lon: +lon.toFixed(3) });
     return pts;
   }
+  function currentsLattice() { return latticeFor(state.s.currentsDensity); }
   async function refreshCurrents(force) {
     const c = state.currents;
     if (map.regionKey() !== 'blacksea') return;
     if (c.busy) return;
-    if (!force && c.grid && Date.now() - c.fetchedAt < 3 * 3600e3) { renderCurrentVectors(); return; }
+    if (!force && c.grid && c.density === state.s.currentsDensity && Date.now() - c.fetchedAt < densityCfg().hours * 3600e3) { renderCurrentVectors(); return; }
     c.busy = true; renderCurrentsMeta();
-    try { c.grid = await window.bridge.fetchCurrents(currentsLattice()); c.fetchedAt = Date.now(); }
+    try { c.grid = await window.bridge.fetchCurrents(currentsLattice()); c.fetchedAt = Date.now(); c.density = state.s.currentsDensity; }
     catch (e) { toast(String(e.message || e), 'err'); }
     finally { c.busy = false; renderCurrentVectors(); renderCurrentsMeta(); }
   }
@@ -882,7 +895,7 @@
       const h = prev && next ? (now - prev.t < next.t - now ? prev : next) : (prev || next);
       if (h && h.speed > 0.02) vec.push({ lat: g.lat, lon: g.lon, speed: h.speed, dir: h.dir });
     });
-    map.setCurrents(vec);
+    map.setCurrents(vec, densityCfg().scale);
   }
   function renderCurrentsMeta() {
     const c = state.currents;

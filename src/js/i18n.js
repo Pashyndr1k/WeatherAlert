@@ -8,6 +8,7 @@
     // topbar / views
     brand_sub: 'MARITIME THRESHOLD WATCH', crumb_alarms: '/ ACTIVE ALARMS', crumb_settings: '/ SETTINGS',
     btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_hlp: 'HLP', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
+    density_title: 'CURRENTS GRID DENSITY', density_coarse: 'Coarse — 1.0° × 0.6°', density_medium: 'Medium — 0.5° × 0.3° (default)', density_fine: 'Fine — 0.25° × 0.15° (refreshed every 6 h, loads over ~3 min)', density_hint: '{n} sea points, refreshed every {h} h ≈ {calls} Open-Meteo calls per day. The ocean model itself is 1/12° (≈9 km).',
     ai_title: 'AI ENSEMBLE (OPTIONAL)', ai_enable: 'Add an AI ensemble as a second opinion (exceedance probabilities)', ai_model: 'MODEL', ai_horizon: 'PROBABILITY HORIZON',
     ai_note: '<b>Off by default.</b> Adds Google DeepMind WeatherNext 2 or ECMWF AIFS ensembles from Open-Meteo (one extra call per refresh). For each widget with a limit the app shows the share of ensemble members that exceed the limit within the horizon, e.g. <b>AI 64 % @ 15:00</b>. Covers 10 m wind, pressure and air temperature only (no waves, gusts or currents); 0.25° grid, 6-hourly steps interpolated to hourly, 15-day range. AI models smooth extremes, so treat them as a probability check, not as the alarm source.',
     ai_badge: 'AI {p} % @ {t}', ai_spread: 'AI {lo}–{hi} {u}', ai_loading: 'AI ENSEMBLE LOADING',
@@ -92,6 +93,7 @@
   const UK = {
     brand_sub: 'МОРСЬКИЙ КОНТРОЛЬ ПОРОГІВ', crumb_alarms: '/ АКТИВНІ ТРИВОГИ', crumb_settings: '/ НАЛАШТУВАННЯ',
     btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_hlp: 'ДОВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
+    density_title: 'ЩІЛЬНІСТЬ СІТКИ ТЕЧІЙ', density_coarse: 'Рідка — 1.0° × 0.6°', density_medium: 'Середня — 0.5° × 0.3° (типово)', density_fine: 'Густа — 0.25° × 0.15° (оновлення кожні 6 год, завантажується ~3 хв)', density_hint: '{n} морських точок, оновлення кожні {h} год ≈ {calls} викликів Open-Meteo на добу. Сама океанічна модель має крок 1/12° (≈9 км).',
     ai_title: 'ШІ-АНСАМБЛЬ (ДОДАТКОВО)', ai_enable: 'Додати ШІ-ансамбль як другу думку (імовірності перевищення)', ai_model: 'МОДЕЛЬ', ai_horizon: 'ГОРИЗОНТ ІМОВІРНОСТІ',
     ai_note: '<b>Типово вимкнено.</b> Додає ансамблі Google DeepMind WeatherNext 2 або ECMWF AIFS з Open-Meteo (один додатковий виклик на оновлення). Для кожного віджета з межею застосунок показує частку членів ансамблю, що перевищують межу в межах горизонту, напр. <b>ШІ 64 % @ 15:00</b>. Лише вітер на 10 м, тиск і температура повітря (без хвиль, поривів і течій); сітка 0.25°, 6-годинний крок з інтерполяцією до години, 15 діб. ШІ-моделі згладжують екстремуми, тож це перевірка ймовірності, а не джерело тривог.',
     ai_badge: 'ШІ {p} % @ {t}', ai_spread: 'ШІ {lo}–{hi} {u}', ai_loading: 'ЗАВАНТАЖЕННЯ ШІ-АНСАМБЛЮ',

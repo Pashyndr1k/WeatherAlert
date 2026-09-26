@@ -80,7 +80,7 @@
     const cache = {};   // `${dataset}:${res}` → { land, lakes, borders, rivers } GeoJSON feature arrays
     let currentRes = null;
     let loading = null;
-    let depthFeatures = null, currentVectors = [], vessels = [];
+    let depthFeatures = null, currentVectors = [], vessels = [], vecScale = 1;
     const layers = { depth: true, currents: true, ais: false };
 
     const zoom = d3.zoom().scaleExtent([1, 60]).on('zoom', (ev) => {
@@ -171,8 +171,9 @@
       const all = gCurrents.selectAll('g.cvec');
       all.attr('transform', vecTransform)
         .attr('data-spd', (d) => (d.speed >= 0.5 ? 'hi' : d.speed >= 0.25 ? 'mid' : 'lo'));
-      all.select('path.shaft').attr('d', (d) => { const L = Math.min(26, 6 + d.speed * 40); return `M0,${-L / 2} L0,${L / 2}`; });
-      all.select('path.head').attr('transform', (d) => `translate(0,${Math.min(26, 6 + d.speed * 40) / 2})`);
+      const len = (d) => Math.min(26, 6 + d.speed * 40) * vecScale;
+      all.select('path.shaft').attr('d', (d) => `M0,${-len(d) / 2} L0,${len(d) / 2}`);
+      all.select('path.head').attr('transform', (d) => `translate(0,${len(d) / 2}) scale(${Math.max(0.6, vecScale)})`);
       all.select('title').text((d) => `${(d.speed * 1.943844).toFixed(2)} kn → ${Math.round(d.dir)}°`);
     }
     function renderVessels() {
@@ -195,7 +196,7 @@
       redrawStatic();
     }
     // Vectors: [{lat, lon, speed(m/s), dir(towards °)}]
-    function setCurrents(vectors) { currentVectors = vectors || []; renderCurrents(); }
+    function setCurrents(vectors, scale) { currentVectors = vectors || []; vecScale = scale || 1; renderCurrents(); }
     function setLayer(name, on) { layers[name] = Boolean(on); redrawStatic(); renderVessels(); }
     // Is this lon/lat inside the sea (0 m depth band)? Used to keep the currents lattice off the land.
     function isSea(lon, lat) {

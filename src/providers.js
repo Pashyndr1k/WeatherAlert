@@ -145,14 +145,20 @@ async function fetchEnsemble(points, { httpGetJson, model = 'google_weathernext2
 
 // Surface-current grid for the map overlay (Open-Meteo marine model, any provider setting).
 // points: [{lat, lon}] → [{lat, lon, hours: [{t, speed(m/s), dir(towards °)}]}]; land points come back with empty hours.
-async function fetchCurrents(points, { httpGetJson }) {
+// Open-Meteo counts every coordinate as a call (600/min, 5 000/h): chunks of 100 are spaced 12 s apart
+// (≤ 500 coords/min) and a 429 is retried after a pause, so a fine grid loads in a few minutes instead of failing.
+const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+async function fetchCurrents(points, { httpGetJson, onProgress }) {
   const out = [];
   for (let i = 0; i < points.length; i += 100) {
     const chunk = points.slice(i, i + 100);
     const url = `${OM_MARINE}?latitude=${chunk.map((q) => q.lat.toFixed(3)).join(',')}&longitude=${chunk.map((q) => q.lon.toFixed(3)).join(',')}` +
       `&hourly=ocean_current_velocity,ocean_current_direction&timezone=UTC&forecast_days=2&timeformat=unixtime`;
-    const r = await httpGetJson(url);
+    if (i > 0 && points.length > 500) await sleep(12000);
+    let r = await httpGetJson(url);
+    for (let attempt = 0; r.status === 429 && attempt < 3; attempt++) { await sleep(20000 * (attempt + 1)); r = await httpGetJson(url); }
     if (r.status !== 200 || !r.json) throw new Error(`Open-Meteo marine HTTP ${r.status}`);
+    if (onProgress) onProgress(Math.min(points.length, i + 100), points.length);
     const arr = Array.isArray(r.json) ? r.json : [r.json];
     chunk.forEach((q, k) => {
       const h = arr[k] && arr[k].hourly;
