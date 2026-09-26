@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true }, widgetColor: 'value',
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true, ais: false }, widgetColor: 'value', ai: { enabled: false, model: 'google_weathernext2_ensemble', horizonH: 24 },
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -33,7 +33,8 @@
     s: defaultSettings(), forecasts: {}, selectedId: null, alarms: [], acked: new Set(), ackedAt: {}, seen: new Set(), reminded: new Set(),
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
     crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
-    currents: { grid: null, fetchedAt: 0, busy: false }
+    currents: { grid: null, fetchedAt: 0, busy: false },
+    ens: {}, ensBusy: false, ais: { timer: null, snap: null, hasKey: false }
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -42,7 +43,7 @@
     const saved = await window.bridge.getSettings();
     if (saved) {
       const d = defaultSettings();
-      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) } };
+      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) }, ai: { ...d.ai, ...(saved.ai || {}) } };
       // make sure the new default indicators appear for existing installs
       ['d_icing', 'd_advFog'].forEach((id) => { if (!saved.display) return; if (!state.s.display.includes(id) && saved.display.length && !saved.seenIndicators) state.s.display.push(id); });
       state.s.seenIndicators = true;
@@ -50,6 +51,7 @@
       if (!saved.layoutV2) { state.s.layout = 'side'; state.s.layoutV2 = true; }
     }
     state.hasKey = await window.bridge.hasApiKey();
+    state.ais.hasKey = window.bridge.aisHasKey ? await window.bridge.aisHasKey() : false;
   }
   let saveT = null;
   function save() { clearTimeout(saveT); saveT = setTimeout(() => window.bridge.saveSettings(state.s), 150); }
@@ -130,6 +132,7 @@
       const res = await window.bridge.fetchWeather(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params, source: state.s.sgSource, hours: 72 });
       res.forEach((fc) => { state.forecasts[fc.pointId] = fc; if (fc.meta && fc.meta.quota) state.quota = { used: fc.meta.used, quota: fc.meta.quota }; });
       state.lastRefresh = Date.now();
+      if (state.s.ai.enabled) refreshEnsemble();
       if (reason === 'manual') toast(t('updated'), 'ok');
     } catch (e) {
       state.error = e.message || String(e);
@@ -378,6 +381,21 @@
       const crit = al.find((a) => a.level === 'critical'), warn = al.find((a) => a.level === 'warning');
       card.classList.toggle('critical', Boolean(crit));
       card.classList.toggle('warning', !crit && Boolean(warn));
+      // AI ensemble exceedance probability (optional)
+      let aiEl = card.querySelector('.c-ai');
+      if (aiEl) aiEl.remove();
+      const ens = state.s.ai.enabled ? state.ens[p.id] : null;
+      const thAi = thresholdFor(id, p.id);
+      if (ens && thAi && WA.ensemble.METRICS.includes(id)) {
+        const pm = WA.ensemble.probMax(ens, id, thAi.op, thAi.value, Date.now(), (state.s.ai.horizonH || 24) * 3600e3);
+        aiEl = document.createElement('div'); aiEl.className = 'c-ai';
+        if (pm) { aiEl.textContent = t('ai_badge', { p: Math.round(pm.p * 100), t: fmtClock(pm.t) }); aiEl.dataset.p = pm.p >= 0.7 ? 'hi' : pm.p >= 0.4 ? 'mid' : 'lo'; }
+        else aiEl.textContent = '';
+        card.appendChild(aiEl);
+      } else if (ens && WA.ensemble.METRICS.includes(id)) {
+        const sp = WA.ensemble.spreadAt(ens, id, Date.now());
+        if (sp) { const lo = fmtMetric(id, sp.p10), hi = fmtMetric(id, sp.p90); aiEl = document.createElement('div'); aiEl.className = 'c-ai'; aiEl.textContent = t('ai_spread', { lo: lo.text, hi: hi.text, u: hi.unit }); card.appendChild(aiEl); }
+      }
       // value-graded colouring
       card.classList.remove('wc-value', 'wc-bg');
       card.style.removeProperty('--wc'); card.style.removeProperty('--wc-bg');
@@ -662,6 +680,8 @@
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
     renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side'; $('setWidgetColor').value = s.widgetColor || 'off';
+    $('setAiEnabled').checked = Boolean(s.ai.enabled); $('setAiModel').value = s.ai.model; $('setAiHorizon').value = String(s.ai.horizonH || 24);
+    $('setAisEnabled').checked = Boolean(s.layers.ais); $('setAisKey').value = ''; $('setAisKey').placeholder = state.ais.hasKey ? t('apikey_stored') : t('ais_key_ph');
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -763,6 +783,11 @@
     const picked = [...document.querySelectorAll('#metricPicker input[data-mid]:checked')].map((i) => i.dataset.mid);
     s.display = [...s.display.filter((id) => picked.includes(id)), ...picked.filter((id) => !s.display.includes(id))];
     const prevLayout = s.layout; s.layout = $('setLayout').value; s.widgetColor = $('setWidgetColor').value;
+    const prevAi = JSON.stringify(s.ai);
+    s.ai = { enabled: $('setAiEnabled').checked, model: $('setAiModel').value, horizonH: Number($('setAiHorizon').value) };
+    const aisKey = $('setAisKey').value.trim();
+    if (aisKey) { await window.bridge.aisSetKey(aisKey); state.ais.hasKey = true; }
+    const prevAis = Boolean(s.layers.ais); s.layers.ais = $('setAisEnabled').checked;
     const key = $('setApiKey').value.trim();
     if (key) { await window.bridge.setApiKey(key); state.hasKey = true; }
     if (s.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); return; }
@@ -770,6 +795,8 @@
     applyLanguage(s.lang);
     if (prevRegion !== s.region || prevProj !== s.projection) { map.setRegion(s.region, s.projection); state.currents.grid = null; applyLayers(); }
     if (prevLayout !== s.layout) applyLayout();
+    if (prevAi !== JSON.stringify(s.ai)) { state.ens = {}; if (s.ai.enabled) refreshEnsemble(); else applyCardStates(); }
+    if (prevAis !== s.layers.ais || aisKey) applyAis();
     state.settingsDraft = null;
     save(); schedule(); setView('home');
     if (prevProvider !== s.provider || key) { state.forecasts = {}; state.quota = null; }
@@ -862,6 +889,51 @@
     $('currentsMeta').textContent = !state.s.layers.currents ? '' : c.busy && !c.grid ? t('currents_loading') : c.grid ? t('currents_meta', { t: fmtTime(c.fetchedAt), n: c.grid.filter((g) => g.hours.length).length }) : '';
   }
 
+  // ------------------------------------------------------------------ AI ensemble (optional second opinion)
+  async function refreshEnsemble() {
+    if (!state.s.ai.enabled || state.ensBusy || !state.s.points.length) return;
+    state.ensBusy = true;
+    try {
+      const res = await window.bridge.fetchEnsemble(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), state.s.ai.model);
+      res.forEach((e) => { state.ens[e.pointId] = e; });
+    } catch (e) { toast(String(e.message || e), 'err'); }
+    finally { state.ensBusy = false; applyCardStates(); }
+  }
+
+  // ------------------------------------------------------------------ AIS vessel layer (optional, AISstream.io)
+  function aisBbox() { const r = map.region(); return { latMin: r.latMin, latMax: r.latMax, lonMin: r.lonMin, lonMax: r.lonMax }; }
+  async function applyAis() {
+    const on = Boolean(state.s.layers.ais);
+    $('btnLayerAis').hidden = !on && !state.ais.hasKey;
+    $('btnLayerAis').classList.toggle('on', on);
+    map.setLayer('ais', on);
+    if (on) {
+      if (!state.ais.hasKey && window.bridge.platform !== 'web') { toast(t('ais_needs_key'), 'err'); state.s.layers.ais = false; save(); $('btnLayerAis').classList.remove('on'); map.setLayer('ais', false); renderAisMeta(); return; }
+      await window.bridge.aisStart(aisBbox());
+      if (!state.ais.timer) state.ais.timer = setInterval(pollAis, 5000);
+      pollAis();
+    } else {
+      if (state.ais.timer) { clearInterval(state.ais.timer); state.ais.timer = null; }
+      await window.bridge.aisStop();
+      map.setVessels([]);
+    }
+    renderAisMeta();
+  }
+  async function pollAis() {
+    try { state.ais.snap = await window.bridge.aisSnapshot(); } catch (e) { return; }
+    map.setVessels(state.ais.snap.vessels || []);
+    renderAisMeta();
+  }
+  function renderAisMeta() {
+    const el = $('aisMeta');
+    if (!state.s.layers.ais) { el.textContent = ''; return; }
+    const sn = state.ais.snap;
+    if (!sn) { el.textContent = t('ais_status_connecting'); return; }
+    if (sn.status === 'live' || (sn.vessels && sn.vessels.length)) el.textContent = sn.status === 'mock' ? `${t('ais_status_mock')} · ${sn.vessels.length}` : t('ais_meta', { n: sn.vessels.length, t: sn.lastMsg ? fmtTime(sn.lastMsg) : '—' });
+    else el.textContent = t(`ais_status_${sn.status}`) || sn.status.toUpperCase();
+  }
+  $('btnLayerAis').addEventListener('click', () => { state.s.layers.ais = !state.s.layers.ais; save(); applyAis(); });
+
   // ------------------------------------------------------------------ layout
   function applyLayout() {
     $('viewHome').dataset.layout = state.s.layout || 'side';
@@ -911,6 +983,8 @@
     map.setRegion(state.s.region, state.s.projection);
     applyLayout();
     window.bridge.loadMapData('depth').then((topo) => { map.setDepth(topo); applyLayers(); }).catch((e) => { toast(t('map_fail') + e.message, 'err'); applyLayers(); });
+    applyAis();
+    if (state.s.ai.enabled) setTimeout(refreshEnsemble, 2000);
     if (state.s.points.length && !state.selectedId) state.selectedId = state.s.points[0].id;
     tickClock(); setInterval(tickClock, 1000);
     renderAll(); schedule(); refresh('auto');

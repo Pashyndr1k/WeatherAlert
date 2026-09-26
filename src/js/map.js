@@ -65,6 +65,7 @@
     const gBorders = root.append('g').attr('class', 'borders');
     const gRegion = root.append('g').attr('class', 'region');
     const gCurrents = root.append('g').attr('class', 'currents');
+    const gVessels = root.append('g').attr('class', 'vessels');
     const gPorts = root.append('g').attr('class', 'ports');
     const gMarkers = root.append('g').attr('class', 'markers');
     const gLabels = svg.append('g').attr('class', 'grid-labels'); // screen-space, not zoomed
@@ -79,8 +80,8 @@
     const cache = {};   // `${dataset}:${res}` → { land, lakes, borders, rivers } GeoJSON feature arrays
     let currentRes = null;
     let loading = null;
-    let depthFeatures = null, currentVectors = [];
-    const layers = { depth: true, currents: true };
+    let depthFeatures = null, currentVectors = [], vessels = [];
+    const layers = { depth: true, currents: true, ais: false };
 
     const zoom = d3.zoom().scaleExtent([1, 60]).on('zoom', (ev) => {
       transform = ev.transform; k = transform.k;
@@ -88,6 +89,8 @@
       root.selectAll('.marker').attr('transform', markerTransform);
       root.selectAll('.port').attr('transform', portTransform);
       root.selectAll('.cvec').attr('transform', vecTransform);
+      root.selectAll('.vessel').attr('transform', vesselTransform);
+      gVessels.selectAll('text').style('display', k >= 3 ? null : 'none');
       updateStrokes();
       drawGraticule();
       ensureLod();
@@ -97,6 +100,8 @@
     function markerTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; }
     function portTransform(d) { const [x, y] = projection([d[2], d[1]]); return `translate(${x},${y}) scale(${1 / k})`; }
     function vecTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k}) rotate(${d.dir})`; }
+    function vesselTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; }
+    function vesselClass(t) { if (t >= 70 && t <= 79) return 'cargo'; if (t >= 80 && t <= 89) return 'tanker'; if (t >= 60 && t <= 69) return 'passenger'; if (t === 30) return 'fishing'; return 'other'; }
     function updateStrokes() {
       gLand.selectAll('path').attr('stroke-width', 0.9 / k);
       gLakes.selectAll('path').attr('stroke-width', 0.5 / k);
@@ -170,13 +175,28 @@
       all.select('path.head').attr('transform', (d) => `translate(0,${Math.min(26, 6 + d.speed * 40) / 2})`);
       all.select('title').text((d) => `${(d.speed * 1.943844).toFixed(2)} kn → ${Math.round(d.dir)}°`);
     }
+    function renderVessels() {
+      gVessels.style('display', layers.ais ? null : 'none');
+      const sel = gVessels.selectAll('g.vessel').data(vessels, (d) => d.mmsi);
+      const enter = sel.enter().append('g').attr('class', 'vessel');
+      enter.append('path').attr('class', 'hull').attr('d', 'M0,-7 L4.5,6 L0,3.5 L-4.5,6 Z');
+      enter.append('text').attr('x', 7).attr('y', 3);
+      enter.append('title');
+      sel.exit().remove();
+      const all = gVessels.selectAll('g.vessel');
+      all.attr('transform', vesselTransform).attr('data-type', (d) => vesselClass(d.type));
+      all.select('path.hull').attr('transform', (d) => `rotate(${d.heading !== undefined && d.heading !== null && d.heading < 360 ? d.heading : (d.cog || 0)})`);
+      all.select('text').text((d) => d.name || d.mmsi).style('display', k >= 3 ? null : 'none');
+      all.select('title').text((d) => `${d.name || ''} MMSI ${d.mmsi} · ${d.sog !== undefined && d.sog !== null ? d.sog.toFixed(1) + ' kn' : ''} ${d.cog !== undefined && d.cog !== null ? '→ ' + Math.round(d.cog) + '°' : ''}${d.dest ? ' · ' + d.dest : ''}`);
+    }
+    function setVessels(list) { vessels = list || []; renderVessels(); }
     function setDepth(topo) {
       depthFeatures = topo && topo.objects && topo.objects.depth ? topojson.feature(topo, topo.objects.depth).features : null;
       redrawStatic();
     }
     // Vectors: [{lat, lon, speed(m/s), dir(towards °)}]
     function setCurrents(vectors) { currentVectors = vectors || []; renderCurrents(); }
-    function setLayer(name, on) { layers[name] = Boolean(on); redrawStatic(); }
+    function setLayer(name, on) { layers[name] = Boolean(on); redrawStatic(); renderVessels(); }
     // Is this lon/lat inside the sea (0 m depth band)? Used to keep the currents lattice off the land.
     function isSea(lon, lat) {
       if (!depthFeatures) return true;
@@ -327,7 +347,7 @@
     new ResizeObserver(() => resize()).observe(container);
     resize();
 
-    return { setRegion, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, regionKey: () => regionKey, lod: () => currentRes, setDepth, setCurrents, setLayer, isSea };
+    return { setRegion, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, regionKey: () => regionKey, lod: () => currentRes, setDepth, setCurrents, setLayer, isSea, setVessels };
   }
 
   WA.map = { createMap, REGIONS, PROJECTIONS };

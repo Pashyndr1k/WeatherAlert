@@ -117,6 +117,18 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .map-svg .currents [data-spd="lo"] .shaft { stroke: rgba(95,176,240,.45); } .map-svg .currents [data-spd="lo"] .head { fill: rgba(95,176,240,.5); }
 .map-svg .currents [data-spd="hi"] .shaft { stroke: #7ccfff; stroke-width: 1.6; } .map-svg .currents [data-spd="hi"] .head { fill: #7ccfff; }
 .marker .carrow path { fill: #5fb0f0; opacity: .9; }
+.map-svg .vessels .hull { fill: #b8c2cc; stroke: var(--bg); stroke-width: .8; }
+.map-svg .vessels [data-type="cargo"] .hull { fill: #9fd39f; }
+.map-svg .vessels [data-type="tanker"] .hull { fill: #e0a86a; }
+.map-svg .vessels [data-type="passenger"] .hull { fill: #8fb8ff; }
+.map-svg .vessels [data-type="fishing"] .hull { fill: #d8d8d4; }
+.map-svg .vessels text { fill: var(--text-3); font-size: 9px; letter-spacing: .06em; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; text-transform: uppercase; }
+.layer-btn.on.ais { color: #9fd39f; border-color: #9fd39f; }
+.ais-meta { color: var(--warn); }
+.note-box.warn { border-color: rgba(240,178,58,.5); }
+.card .c-ai { font-size: 10px; letter-spacing: .08em; color: var(--text-4); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-transform: uppercase; }
+.card .c-ai[data-p="mid"] { color: var(--warn); }
+.card .c-ai[data-p="hi"] { color: var(--crit); }
 .map-svg .ports circle { fill: var(--text-4); }
 .map-svg .ports text { fill: var(--text-4); font-size: 10px; letter-spacing: .06em; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
 .map-svg .grid-labels text { fill: var(--text-dim); font-family: var(--mono); font-size: 10px; letter-spacing: .1em; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; }
