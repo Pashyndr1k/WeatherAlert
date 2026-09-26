@@ -15,6 +15,12 @@ if (!window.bridge) {
     loadMapData: async (dataset, res) => (await fetch(dataset === 'gshhg' ? `../assets/blacksea/blacksea_${res}.json` : dataset === 'depth' ? '../assets/blacksea/depth.json' : '../node_modules/world-atlas/countries-50m.json')).json(),
     fetchCurrents: async (points) => window.WA.providers.fetchCurrents(points, { httpGetJson }),
     fetchEnsemble: async (points, model) => window.WA.providers.fetchEnsemble(points, { httpGetJson, model }),
+    sensorsStart: async (cfg) => { window.__sens = { cfg, t0: Date.now(), status: { udp: cfg.udpPort || 10110, tcp: cfg.udpPort || 10110, http: cfg.httpPort || 8787, lastMsg: Date.now(), msgs: 0, bad: 0, sources: { 'sim:preview': Date.now() }, error: null }, log: [] }; return window.__sens.status; },
+    sensorsStop: async () => { window.__sens = null; },
+    sensorsSnapshot: async () => { const s = window.__sens; if (!s) return { readings: {}, position: null, status: { udp: null, tcp: null, http: null, lastMsg: 0, msgs: 0, bad: 0, sources: {} }, log: [] };
+      const k = (Date.now() - s.t0) / 1000, now = Date.now(); s.status.msgs++; s.status.lastMsg = now;
+      const r = (v, note) => ({ value: v, t: now, src: 'sim:preview', note: note || null });
+      return { readings: { windSpeed: r(9 + 3 * Math.sin(k / 20)), windDirection: r((250 + 20 * Math.sin(k / 45) + 360) % 360), gust: r(13 + 3 * Math.sin(k / 15)), airTemperature: r(17.5 + Math.sin(k / 60)), pressure: r(1009.5 - k / 300), humidity: r(80 + 5 * Math.sin(k / 30)), waterTemperature: r(21.4) }, position: { lat: 44.9 + 0.002 * Math.sin(k / 50), lon: 35.4 + 0.004 * (k / 100), t: now, sog: 6.1, cog: 80 }, heading: 80, status: s.status, log: ['$WIMDA,29.80,I,1.0092,B,17.5,C,21.4,C,80.0,,,,14.0,C,250.0,T,,,17.5,N,9.0,M*00 (simulated)'] }; },
     aisSetKey: async (k) => localStorage.setItem('wa.aiskey', k),
     aisHasKey: async () => true,
     aisStart: async (bbox) => { window.__ais = window.__ais || { vessels: new Map(), status: 'off', lastMsg: 0 }; const a = window.__ais; a.bbox = bbox; a.vessels.clear();

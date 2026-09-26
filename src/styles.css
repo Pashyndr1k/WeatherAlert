@@ -412,3 +412,14 @@ body.crit-open .topbar, body.crit-open .view { filter: blur(1.5px); opacity: .55
 .crit-actions .lbl-btn { font-size: 10px; padding: 7px 10px; color: var(--text); }
 .crit-actions .lbl-btn.solid { padding: 7px 14px; color: var(--bg); }
 .crit-under { display: flex; justify-content: space-between; margin-top: 8px; font-size: 9px; letter-spacing: .12em; color: var(--text-dim); white-space: nowrap; text-transform: uppercase; gap: 16px; }
+
+/* ---------- ship sensors ---------- */
+.card.live { border-left-color: var(--ok); }
+.card .live-tag { font-size: 9px; letter-spacing: .14em; color: var(--ok); border: 1px solid var(--ok); padding: 1px 5px; margin-left: auto; margin-right: 8px; }
+.card.live .c-val { color: var(--text-bright); }
+.marker.own .tri { fill: var(--ok); stroke: var(--bg); stroke-width: .8; }
+.marker.own .label { fill: var(--ok); }
+.marker.own.warning .tri { fill: var(--warn); } .marker.own.critical .tri { fill: var(--accent); }
+.rail-row .nm.own { color: var(--ok); }
+#sensorsStatus .dim { color: var(--text-4); }
+#sensorsStatus code { font-size: 10px; color: var(--text-4); }

@@ -8,6 +8,8 @@ const path = require('path');
 const fs = require('fs');
 
 const providers = require('./src/providers');
+const { SensorHub } = require('./src/sensors');
+const sensorHub = new SensorHub();
 
 const APP_ID = 'io.weatheralert.desktop';
 let win = null;
@@ -18,7 +20,7 @@ function settingsPath() {
 }
 function readSettings() {
   try {
-    const raw = fs.readFileSync(settingsPath(), 'utf8');
+    const raw = fs.readFileSync(settingsPath(), 'utf8').replace(/^﻿/, ''); // tolerate a BOM from external editors
     return JSON.parse(raw);
   } catch {
     return null;
@@ -209,6 +211,13 @@ function aisStop() {
   ais.ws = null;
 }
 setInterval(() => { const cut = Date.now() - 30 * 60e3; for (const [k, v] of ais.vessels) if ((v.t || 0) < cut) ais.vessels.delete(k); }, 60e3);
+ipcMain.handle('sensors:start', (_e, cfg) => {
+  sensorHub.start(cfg || {});
+  setTimeout(() => console.log('[sensors] listeners', JSON.stringify({ udp: sensorHub.status.udp, tcp: sensorHub.status.tcp, http: sensorHub.status.http, error: sensorHub.status.error })), 800);
+  return sensorHub.status;
+});
+ipcMain.handle('sensors:stop', () => { sensorHub.stop(); return true; });
+ipcMain.handle('sensors:snapshot', () => sensorHub.snapshot());
 ipcMain.handle('ais:setKey', (_e, key) => saveAisKey(String(key || '').trim()));
 ipcMain.handle('ais:hasKey', () => Boolean(loadAisKey()));
 ipcMain.handle('ais:start', (_e, bbox) => { ais.bbox = bbox; ais.vessels.clear(); aisConnect(); return ais.status; });
@@ -239,4 +248,4 @@ app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => { sensorHub.stop(); if (process.platform !== 'darwin') app.quit(); });

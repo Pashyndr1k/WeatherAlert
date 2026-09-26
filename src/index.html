@@ -136,6 +136,7 @@
         <button class="tab" data-tab="metrics" data-i18n="tab_metrics">METRICS</button>
         <button class="tab" data-tab="thresholds" data-i18n="tab_thresholds">THRESHOLDS</button>
         <button class="tab" data-tab="alerts" data-i18n="tab_alerts">ALERTS &amp; UNITS</button>
+        <button class="tab" data-tab="sensors" data-i18n="tab_sensors">SENSORS</button>
       </nav>
       <div class="pane-wrap">
         <!-- provider -->
@@ -236,6 +237,30 @@
             <span class="th-unit" id="thUnit"></span>
             <button class="lbl-btn light" id="btnAddThreshold" data-i18n="add_threshold">ADD THRESHOLD</button>
           </div>
+        </section>
+
+        <!-- sensors -->
+        <section class="tab-pane" data-pane="sensors">
+          <h1 class="pane-title" data-i18n="tab_sensors">SENSORS</h1>
+          <p class="pane-intro" data-i18n="sensors_intro"></p>
+          <div class="field-row checks">
+            <label class="check"><input type="checkbox" id="setSensorsEnabled" /><i></i><span data-i18n="sensors_enable"></span></label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span data-i18n="sensors_udp">NMEA 0183 PORT (UDP + TCP)</span><input id="setSensorsUdp" type="number" min="1024" max="65535" /></label>
+            <label class="field"><span data-i18n="sensors_http">JSON HTTP PORT</span><input id="setSensorsHttp" type="number" min="1024" max="65535" /></label>
+            <label class="field"><span data-i18n="sensors_stale">STALENESS LIMIT</span>
+              <select id="setSensorsStale"><option value="2">2 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">60 min</option></select>
+            </label>
+          </div>
+          <div class="field-row">
+            <label class="field"><span data-i18n="sensors_pos">OWN SHIP POSITION</span>
+              <select id="setSensorsPosMode"><option value="gps" data-i18n="sensors_pos_gps"></option><option value="fixed" data-i18n="sensors_pos_fixed"></option></select>
+            </label>
+            <label class="field"><span data-i18n="sensors_fixed">FIXED COORDINATES (WGS84)</span><input id="setSensorsFixed" type="text" data-i18n-ph="coords_ph" /></label>
+          </div>
+          <div class="note-box" id="sensorsStatus"></div>
+          <div class="note-box" data-i18n="sensors_note"></div>
         </section>
 
         <!-- alerts & units -->

@@ -288,7 +288,7 @@
       enter.append('g').attr('class', 'arrow').append('path').attr('d', 'M0,-30 L4,-22 L1.5,-22 L1.5,-14 L-1.5,-14 L-1.5,-22 L-4,-22 Z');
       enter.append('g').attr('class', 'carrow').append('path').attr('d', 'M0,-30 L4,-22 L1.5,-22 L1.5,-14 L-1.5,-14 L-1.5,-22 L-4,-22 Z');
       // downward triangle 14 x 12 whose tip sits exactly on the coordinate
-      enter.append('path').attr('class', 'tri').attr('d', 'M-7,-12 L7,-12 L0,0 Z');
+      enter.append('path').attr('class', 'tri').attr('d', (d) => d.own ? 'M0,-9 L5,5 L0,2 L-5,5 Z' : 'M-7,-12 L7,-12 L0,0 Z');
       enter.append('text').attr('class', 'label').attr('x', 0).attr('y', 14);
       enter.append('text').attr('class', 'sub').attr('x', 0).attr('y', 26);
       enter.on('click', (ev, d) => { ev.stopPropagation(); handlers.onSelect && handlers.onSelect(d.id); });
@@ -296,10 +296,12 @@
       sel.exit().transition().duration(300).style('opacity', 0).remove();
       const all = gMarkers.selectAll('g.marker');
       all.attr('transform', markerTransform)
+        .classed('own', (d) => Boolean(d.own))
         .classed('selected', (d) => d.id === selectedId)
         .classed('warning', (d) => (states[d.id] || {}).level === 'warning')
         .classed('critical', (d) => (states[d.id] || {}).level === 'critical');
       all.select('text.label').text((d) => { const st = states[d.id] || {}; return st.level === 'critical' && st.critText ? `${d.name} · ${st.critText}` : d.name; });
+      all.select('path.tri').attr('transform', (d) => (d.own && states[d.id] && states[d.id].heading !== null && states[d.id].heading !== undefined ? `rotate(${states[d.id].heading})` : null));
       all.select('text.sub').text((d) => (states[d.id] || {}).sub || '');
       all.select('g.arrow').style('display', (d) => (states[d.id] && states[d.id].windDir !== null && states[d.id].windDir !== undefined ? null : 'none'))
         .transition().duration(900).ease(d3.easeCubicOut)
