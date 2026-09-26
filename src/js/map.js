@@ -165,7 +165,7 @@
       const sel = gCurrents.selectAll('g.cvec').data(currentVectors, (d) => `${d.lat},${d.lon}`);
       const enter = sel.enter().append('g').attr('class', 'cvec');
       enter.append('path').attr('class', 'shaft');
-      enter.append('path').attr('class', 'head').attr('d', 'M-3,-3 L0,2 L3,-3 Z');
+      enter.append('path').attr('class', 'head').attr('d', 'M-3,3 L0,-2 L3,3 Z'); // tip at the top: rotate(0) = flowing north
       enter.append('title');
       sel.exit().remove();
       const all = gCurrents.selectAll('g.cvec');
@@ -173,7 +173,7 @@
         .attr('data-spd', (d) => (d.speed >= 0.5 ? 'hi' : d.speed >= 0.25 ? 'mid' : 'lo'));
       const len = (d) => Math.min(26, 6 + d.speed * 40) * vecScale;
       all.select('path.shaft').attr('d', (d) => `M0,${-len(d) / 2} L0,${len(d) / 2}`);
-      all.select('path.head').attr('transform', (d) => `translate(0,${len(d) / 2}) scale(${Math.max(0.6, vecScale)})`);
+      all.select('path.head').attr('transform', (d) => `translate(0,${-len(d) / 2}) scale(${Math.max(0.6, vecScale)})`);
       all.select('title').text((d) => `${(d.speed * 1.943844).toFixed(2)} kn → ${Math.round(d.dir)}°`);
     }
     function renderVessels() {
