@@ -1,5 +1,5 @@
 @echo off
-rem WeatherAlert launcher — runs the app from source (installs dependencies on first run).
+rem WeatherAlert launcher - runs the app from source (installs dependencies on first run).
 setlocal
 cd /d "%~dp0"
 
