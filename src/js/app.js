@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'medium', widgetColor: 'value',
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'coarse', widgetColor: 'value',
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -666,7 +666,7 @@
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
     $('setProjection').value = s.projection; $('setLang').value = s.lang;
     renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side'; $('setWidgetColor').value = s.widgetColor || 'off';
-    $('setCurrentsDensity').value = s.currentsDensity || 'medium'; renderDensityHint();
+    $('setCurrentsDensity').value = s.currentsDensity || 'coarse'; renderDensityHint();
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -696,7 +696,7 @@
     sel.innerHTML = `<option value="local">${t('tz_local', { z: tzLabel(localOff) })}</option>` + offs.map((o) => `<option value="${o}">${tzLabel(o)}${o === 180 ? ' — ' + t('tz_default') : ''}</option>`).join('');
   }
   function renderDensityHint() {
-    const key = $('setCurrentsDensity').value; const d = DENSITY[key] || DENSITY.medium;
+    const key = $('setCurrentsDensity').value; const d = DENSITY[key] || DENSITY.coarse;
     const n = latticeFor(key).length;
     $('densityHint').textContent = t('density_hint', { n, h: d.hours, calls: n * Math.round(24 / d.hours) });
   }
@@ -842,9 +842,9 @@
   // Lattice of sea points over the map window, kept off the land with the coastline mask. Density is a setting:
   // coarse ~1.0x0.6 deg (~90 pts), medium ~0.5x0.3 (~360), fine ~0.25x0.15 (~1400). Each point is one API call.
   const DENSITY = { coarse: { dlon: 1.0, dlat: 0.6, hours: 3, scale: 1 }, medium: { dlon: 0.5, dlat: 0.3, hours: 3, scale: 0.7 }, fine: { dlon: 0.25, dlat: 0.15, hours: 6, scale: 0.5 } };
-  function densityCfg() { return DENSITY[state.s.currentsDensity] || DENSITY.medium; }
+  function densityCfg() { return DENSITY[state.s.currentsDensity] || DENSITY.coarse; }
   function latticeFor(key) {
-    const r = map.region(); const d = DENSITY[key] || DENSITY.medium; const pts = [];
+    const r = map.region(); const d = DENSITY[key] || DENSITY.coarse; const pts = [];
     for (let lat = r.latMin + d.dlat / 2; lat < r.latMax; lat += d.dlat) for (let lon = r.lonMin + d.dlon / 2; lon < r.lonMax; lon += d.dlon) if (map.isSea(lon, lat)) pts.push({ lat: +lat.toFixed(3), lon: +lon.toFixed(3) });
     return pts;
   }

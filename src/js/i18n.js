@@ -8,7 +8,7 @@
     // topbar / views
     brand_sub: 'MARITIME THRESHOLD WATCH', crumb_alarms: '/ ACTIVE ALARMS', crumb_settings: '/ SETTINGS',
     btn_snd: 'SND', btn_rfr: 'RFR', btn_set: 'SET', btn_alm: 'ALM', btn_hlp: 'HLP', btn_cancel: 'CANCEL', btn_save: 'SAVE & APPLY',
-    density_title: 'CURRENTS GRID DENSITY', density_coarse: 'Coarse — 1.0° × 0.6°', density_medium: 'Medium — 0.5° × 0.3° (default)', density_fine: 'Fine — 0.25° × 0.15° (refreshed every 6 h, loads over ~3 min)', density_hint: '{n} sea points, refreshed every {h} h ≈ {calls} Open-Meteo calls per day. The ocean model itself is 1/12° (≈9 km).',
+    density_title: 'CURRENTS GRID DENSITY', density_coarse: 'Coarse — 1.0° × 0.6° (default)', density_medium: 'Medium — 0.5° × 0.3°', density_fine: 'Fine — 0.25° × 0.15° (refreshed every 6 h, loads over ~3 min)', density_hint: '{n} sea points, refreshed every {h} h ≈ {calls} Open-Meteo calls per day. The ocean model itself is 1/12° (≈9 km).',
     wc_title: 'WIDGET COLOUR', wc_off: 'Off', wc_value: 'Colour the main number', wc_bg: 'Colour the widget background', wc_hint: 'Green far below the limit, amber approaching it, red at or beyond it. Only widgets with a limit are coloured; alarm states still take precedence.',
     tip_provider: 'Choose the data provider', layer_currents: 'Surface currents (Open-Meteo marine model)', currents_meta: 'CURRENTS {t} · {n} PTS', currents_loading: 'CURRENTS LOADING', provider_switched: 'Provider: {p}', remove_point_tip: 'Remove point',
     crit_title: 'CRITICAL THRESHOLDS', crit_summary: '{c} EXCEEDED · {w} WITHIN LEAD', crit_raised: 'RAISED', crit_col_point: 'POINT · METRIC · RULE', crit_col_status: 'STATUS',
@@ -86,7 +86,7 @@
   const UK = {
     brand_sub: 'МОРСЬКИЙ КОНТРОЛЬ ПОРОГІВ', crumb_alarms: '/ АКТИВНІ ТРИВОГИ', crumb_settings: '/ НАЛАШТУВАННЯ',
     btn_snd: 'ЗВК', btn_rfr: 'ОНВ', btn_set: 'НАЛ', btn_alm: 'ТРВ', btn_hlp: 'ДОВ', btn_cancel: 'СКАСУВАТИ', btn_save: 'ЗБЕРЕГТИ',
-    density_title: 'ЩІЛЬНІСТЬ СІТКИ ТЕЧІЙ', density_coarse: 'Рідка — 1.0° × 0.6°', density_medium: 'Середня — 0.5° × 0.3° (типово)', density_fine: 'Густа — 0.25° × 0.15° (оновлення кожні 6 год, завантажується ~3 хв)', density_hint: '{n} морських точок, оновлення кожні {h} год ≈ {calls} викликів Open-Meteo на добу. Сама океанічна модель має крок 1/12° (≈9 км).',
+    density_title: 'ЩІЛЬНІСТЬ СІТКИ ТЕЧІЙ', density_coarse: 'Рідка — 1.0° × 0.6° (типово)', density_medium: 'Середня — 0.5° × 0.3°', density_fine: 'Густа — 0.25° × 0.15° (оновлення кожні 6 год, завантажується ~3 хв)', density_hint: '{n} морських точок, оновлення кожні {h} год ≈ {calls} викликів Open-Meteo на добу. Сама океанічна модель має крок 1/12° (≈9 км).',
     wc_title: 'КОЛІР ВІДЖЕТІВ', wc_off: 'Вимкнено', wc_value: 'Забарвлювати головне число', wc_bg: 'Забарвлювати фон віджета', wc_hint: 'Зелений — далеко від межі, жовтий — наближення, червоний — на межі або за нею. Забарвлюються лише віджети з межею; стани тривог мають пріоритет.',
     tip_provider: 'Обрати постачальника даних', layer_currents: 'Поверхневі течії (морська модель Open-Meteo)', currents_meta: 'ТЕЧІЇ {t} · {n} ТЧК', currents_loading: 'ЗАВАНТАЖЕННЯ ТЕЧІЙ', provider_switched: 'Джерело: {p}', remove_point_tip: 'Видалити точку',
     crit_title: 'КРИТИЧНІ ПОРОГИ', crit_summary: '{c} ПЕРЕВИЩЕНО · {w} У МЕЖАХ УПЕРЕДЖЕННЯ', crit_raised: 'ПОДАНО', crit_col_point: 'ТОЧКА · ПОКАЗНИК · ПРАВИЛО', crit_col_status: 'СТАТУС',
