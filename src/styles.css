@@ -260,6 +260,7 @@ select option { background: var(--bg); color: var(--text); }
 .field > span { font-size: 10px; letter-spacing: .14em; color: var(--text-4); text-transform: uppercase; white-space: nowrap; }
 .hint { font-size: 11px; color: var(--text-3); line-height: 1.6; text-transform: none; letter-spacing: 0; }
 .field-row { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; }
+.field-row:has(.hint) { align-items: flex-start; }
 .field-row.checks { gap: 32px; }
 .check { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; color: var(--text-2); font-size: 12px; position: relative; }
 .check input { position: absolute; opacity: 0; width: 0; height: 0; }

@@ -1094,7 +1094,7 @@
     applyLayout();
     window.bridge.loadMapData('depth').then((topo) => { map.setDepth(topo); applyLayers(); }).catch((e) => { toast(t('map_fail') + e.message, 'err'); applyLayers(); });
     applyAis();
-    if (state.s.sensors.enabled) applySensors();
+    if (state.s.sensors.enabled) applySensors(); else ensureOwnShip(); // drop a stale OWN SHIP point when the receiver is off
     if (state.s.ai.enabled) setTimeout(refreshEnsemble, 2000);
     if (state.s.points.length && !state.selectedId) state.selectedId = state.s.points[0].id;
     tickClock(); setInterval(tickClock, 1000);
