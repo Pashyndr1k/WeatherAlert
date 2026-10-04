@@ -1,7 +1,7 @@
 # WeatherAlert
 
 Standalone Windows / macOS desktop app for ship captains: tracks marine weather at up to 10
-user-defined WGS84 points across Europe & Asia, shows a simplified vector map with a
+user-defined WGS84 points in the Black Sea & Sea of Azov, shows a simplified vector map with a
 metrics panel, and raises **visual + audible alarms 60–90 minutes before** a user-set
 critical threshold is forecast to be reached.
 
@@ -94,7 +94,7 @@ src/providers.js Open-Meteo and Stormglass adapters → one normalised hourly fo
 src/js/units.js  Unit conversion, Beaufort/Douglas/okta scales, WMO codes, coordinate parser
 src/js/alarms.js Threshold engine (interpolation, first-crossing search, ETA)
 src/js/audio.js  Web Audio alarm tones
-src/js/map.js    Multi-LOD d3 map (GSHHG Black Sea / NE Europe–Asia), Mercator or Albers, labelled graticule, ports
+src/js/map.js    Multi-LOD d3 map (GSHHG Black Sea & Sea of Azov), Mercator or Albers, labelled graticule, ports
 src/js/app.js    UI state, rendering, refresh scheduling, settings modal
 src/dev-shim.js  Lets the renderer run in a plain browser for QA (no Electron)
 ```

@@ -1,8 +1,8 @@
 {
   "name": "weatheralert",
   "productName": "WeatherAlert",
-  "version": "0.6.1",
-  "description": "Maritime weather tracking and threshold alarms for ship captains (Europe & Asia)",
+  "version": "0.7.0",
+  "description": "Maritime weather tracking and threshold alarms for ship captains (Black Sea & Sea of Azov)",
   "main": "main.js",
   "private": true,
   "scripts": {
@@ -10,7 +10,7 @@
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",
     "dist:mac": "electron-builder --mac",
-    "test": "node test/engine.test.js && node test/guide.test.js && node test/ensemble.test.js && node test/sensors.test.js"
+    "test": "node test/engine.test.js && node test/guide.test.js"
   },
   "author": "WeatherAlert",
   "license": "MIT",
@@ -22,9 +22,7 @@
   },
   "dependencies": {
     "d3": "^7.9.0",
-    "topojson-client": "^3.1.0",
-    "world-atlas": "^2.0.2",
-    "ws": "^8.21.3"
+    "topojson-client": "^3.1.0"
   },
   "build": {
     "appId": "io.weatheralert.desktop",
@@ -38,7 +36,6 @@
       "src/**/*",
       "node_modules/d3/dist/d3.min.js",
       "node_modules/topojson-client/dist/topojson-client.min.js",
-      "node_modules/world-atlas/countries-50m.json",
       "!scratch",
       "!docs",
       "!test",
@@ -47,9 +44,7 @@
       "!tools",
       "assets/icon*.png",
       "assets/icon.ico",
-      "assets/fonts/**",
-      "assets/blacksea/depth.json",
-      "node_modules/ws/**"
+      "assets/fonts/**"
     ],
     "asar": true,
     "win": {

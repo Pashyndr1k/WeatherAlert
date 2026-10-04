@@ -1,7 +1,7 @@
 # WeatherAlert
 
 Standalone Windows / macOS desktop app for ship captains: tracks marine weather at up to 10
-user-defined WGS84 points across Europe & Asia, shows a simplified vector map with a
+user-defined WGS84 points in the Black Sea & Sea of Azov, shows a simplified vector map with a
 metrics panel, and raises **visual + audible alarms 60–90 minutes before** a user-set
 critical threshold is forecast to be reached.
 

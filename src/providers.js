@@ -115,34 +115,6 @@ async function fetchStormglass(points, { httpGetJson, apiKey, params, hours = 72
   return out;
 }
 
-// AI ensemble (Open-Meteo ensemble API): WeatherNext 2 (64 members) or ECMWF AIFS (51 members).
-// Returns per point: { pointId, model, members, hours: [{ t, v: { windSpeed: [...], pressure: [...], airTemperature: [...] } }] }
-const OM_ENSEMBLE = 'https://ensemble-api.open-meteo.com/v1/ensemble';
-const ENS_VARS = [['wind_speed_10m', 'windSpeed'], ['pressure_msl', 'pressure'], ['temperature_2m', 'airTemperature']];
-async function fetchEnsemble(points, { httpGetJson, model = 'google_weathernext2_ensemble', hours = 72 }) {
-  if (!points.length) return [];
-  const days = Math.max(2, Math.ceil(hours / 24) + 1);
-  const url = `${OM_ENSEMBLE}?latitude=${points.map((q) => q.lat.toFixed(4)).join(',')}&longitude=${points.map((q) => q.lon.toFixed(4)).join(',')}` +
-    `&hourly=${ENS_VARS.map((x) => x[0]).join(',')}&models=${model}&forecast_days=${days}&wind_speed_unit=ms&timezone=UTC&timeformat=unixtime`;
-  const r = await httpGetJson(url, {}, 60000);
-  if (r.status !== 200 || !r.json) throw new Error(`Open-Meteo ensemble HTTP ${r.status}: ${(r.json && r.json.reason) || ''}`);
-  const arr = Array.isArray(r.json) ? r.json : [r.json];
-  return points.map((q, i) => {
-    const h = (arr[i] && arr[i].hourly) || {};
-    const times = h.time || [];
-    const cols = Object.keys(h).filter((k) => k !== 'time');
-    const byVar = {};
-    ENS_VARS.forEach(([om, id]) => { byVar[id] = cols.filter((k) => k === om || k.startsWith(om + '_member')); });
-    const members = Math.max(...Object.values(byVar).map((c) => c.length));
-    const hoursOut = times.map((t, k) => {
-      const v = {};
-      ENS_VARS.forEach(([, id]) => { v[id] = byVar[id].map((c) => h[c][k]); });
-      return { t: t * 1000, v };
-    });
-    return { pointId: q.id, model, members, fetchedAt: Date.now(), hours: hoursOut };
-  });
-}
-
 // Surface-current grid for the map overlay (Open-Meteo marine model, any provider setting).
 // points: [{lat, lon}] → [{lat, lon, hours: [{t, speed(m/s), dir(towards °)}]}]; land points come back with empty hours.
 // Open-Meteo counts every coordinate as a call (600/min, 5 000/h): chunks of 100 are spaced 12 s apart
@@ -175,5 +147,5 @@ async function fetchAll(provider, points, opts) {
   return fetchOpenMeteo(points, opts);
 }
 
-return { fetchAll, fetchOpenMeteo, fetchStormglass, fetchCurrents, fetchEnsemble };
+return { fetchAll, fetchOpenMeteo, fetchStormglass, fetchCurrents };
 });

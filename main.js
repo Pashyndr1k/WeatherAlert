@@ -8,8 +8,6 @@ const path = require('path');
 const fs = require('fs');
 
 const providers = require('./src/providers');
-const { SensorHub } = require('./src/sensors');
-const sensorHub = new SensorHub();
 
 const APP_ID = 'io.weatheralert.desktop';
 let win = null;
@@ -125,17 +123,10 @@ ipcMain.handle('apikey:get', () => loadApiKey());
 ipcMain.handle('apikey:set', (_e, key) => saveApiKey(String(key || '').trim()));
 ipcMain.handle('apikey:has', () => Boolean(loadApiKey()));
 
-// Map data: GSHHG Black Sea tiles by resolution (c/l/i/h/f) or Natural Earth 50 m for the wide view.
+// Map data: GSHHG Black Sea tiles by resolution (c/l/i/h/f).
 ipcMain.handle('map:load', (_e, dataset, res) => {
-  let p;
-  if (dataset === 'gshhg') {
-    if (!/^[clihf]$/.test(String(res))) throw new Error('bad resolution');
-    p = path.join(__dirname, 'assets', 'blacksea', `blacksea_${res}.json`);
-  } else if (dataset === 'depth') {
-    p = path.join(__dirname, 'assets', 'blacksea', 'depth.json');
-  } else {
-    p = path.join(__dirname, 'node_modules', 'world-atlas', 'countries-50m.json');
-  }
+  if (dataset !== 'gshhg' || !/^[clihf]$/.test(String(res))) throw new Error('bad map dataset');
+  const p = path.join(__dirname, 'assets', 'blacksea', `blacksea_${res}.json`);
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 });
 
@@ -148,82 +139,6 @@ ipcMain.handle('weather:fetch', async (_e, points, opts) => {
 });
 
 ipcMain.handle('currents:fetch', async (_e, points) => providers.fetchCurrents(points, { httpGetJson }));
-ipcMain.handle('ensemble:fetch', async (_e, points, model) => providers.fetchEnsemble(points, { httpGetJson, model }));
-
-// ---------- AIS (AISstream.io WebSocket) ----------
-const WebSocketClient = require('ws');
-function aisKeyPath() { return path.join(app.getPath('userData'), 'aisstream.key'); }
-function saveAisKey(key) {
-  if (!key) { try { fs.unlinkSync(aisKeyPath()); } catch { /* ignore */ } return true; }
-  fs.writeFileSync(aisKeyPath(), safeStorage.isEncryptionAvailable() ? safeStorage.encryptString(key) : Buffer.from('plain:' + key, 'utf8'));
-  return true;
-}
-function loadAisKey() {
-  try {
-    const buf = fs.readFileSync(aisKeyPath());
-    const asText = buf.toString('utf8');
-    if (asText.startsWith('plain:')) return asText.slice(6);
-    return safeStorage.isEncryptionAvailable() ? safeStorage.decryptString(buf) : '';
-  } catch { return ''; }
-}
-const ais = { ws: null, bbox: null, vessels: new Map(), lastMsg: 0, status: 'off', error: null, retry: null };
-function aisConnect() {
-  const key = loadAisKey();
-  if (!key || !ais.bbox) { ais.status = key ? 'off' : 'nokey'; return; }
-  try { if (ais.ws) { ais.ws.removeAllListeners(); ais.ws.terminate(); } } catch { /* ignore */ }
-  ais.status = 'connecting'; ais.error = null;
-  const ws = new WebSocketClient('wss://stream.aisstream.io/v0/stream');
-  ais.ws = ws;
-  ws.on('open', () => {
-    ais.status = 'live';
-    // AISstream wants [[lat, lon], [lat, lon]] corners
-    ws.send(JSON.stringify({ APIKey: key, BoundingBoxes: [[[ais.bbox.latMin, ais.bbox.lonMin], [ais.bbox.latMax, ais.bbox.lonMax]]], FilterMessageTypes: ['PositionReport', 'ShipStaticData', 'StandardClassBPositionReport'] }));
-  });
-  ws.on('message', (data) => {
-    try {
-      const msg = JSON.parse(data.toString());
-      const meta = msg.MetaData || {};
-      const mmsi = meta.MMSI || (msg.Message && msg.Message.PositionReport && msg.Message.PositionReport.UserID);
-      if (!mmsi) return;
-      const v = ais.vessels.get(mmsi) || { mmsi };
-      const type = msg.MessageType;
-      if (type === 'PositionReport' || type === 'StandardClassBPositionReport') {
-        const pr = msg.Message[type];
-        v.lat = meta.latitude !== undefined ? meta.latitude : pr.Latitude; v.lon = meta.longitude !== undefined ? meta.longitude : pr.Longitude;
-        v.sog = pr.Sog; v.cog = pr.Cog; v.heading = pr.TrueHeading; v.t = Date.now();
-        if (meta.ShipName) v.name = String(meta.ShipName).trim();
-      } else if (type === 'ShipStaticData') {
-        const sd = msg.Message.ShipStaticData;
-        v.name = String(sd.Name || meta.ShipName || '').trim(); v.type = sd.Type; v.dest = String(sd.Destination || '').trim(); v.imo = sd.ImoNumber;
-        if (!v.lat && meta.latitude !== undefined) { v.lat = meta.latitude; v.lon = meta.longitude; v.t = Date.now(); }
-      }
-      ais.vessels.set(mmsi, v); ais.lastMsg = Date.now();
-    } catch { /* ignore malformed */ }
-  });
-  const scheduleRetry = () => { if (ais.retry) clearTimeout(ais.retry); if (ais.bbox) ais.retry = setTimeout(aisConnect, 15000); };
-  ws.on('error', (e) => { ais.status = 'error'; ais.error = e.message; });
-  ws.on('close', () => { if (ais.status !== 'off') { ais.status = ais.status === 'error' ? 'error' : 'reconnecting'; scheduleRetry(); } });
-}
-function aisStop() {
-  ais.bbox = null; ais.status = 'off';
-  if (ais.retry) { clearTimeout(ais.retry); ais.retry = null; }
-  try { if (ais.ws) { ais.ws.removeAllListeners(); ais.ws.close(); } } catch { /* ignore */ }
-  ais.ws = null;
-}
-setInterval(() => { const cut = Date.now() - 30 * 60e3; for (const [k, v] of ais.vessels) if ((v.t || 0) < cut) ais.vessels.delete(k); }, 60e3);
-ipcMain.handle('sensors:start', (_e, cfg) => {
-  sensorHub.start(cfg || {});
-  setTimeout(() => console.log('[sensors] listeners', JSON.stringify({ udp: sensorHub.status.udp, tcp: sensorHub.status.tcp, http: sensorHub.status.http, error: sensorHub.status.error })), 800);
-  return sensorHub.status;
-});
-ipcMain.handle('sensors:stop', () => { sensorHub.stop(); return true; });
-ipcMain.handle('sensors:snapshot', () => sensorHub.snapshot());
-ipcMain.handle('ais:setKey', (_e, key) => saveAisKey(String(key || '').trim()));
-ipcMain.handle('ais:hasKey', () => Boolean(loadAisKey()));
-ipcMain.handle('ais:start', (_e, bbox) => { ais.bbox = bbox; ais.vessels.clear(); aisConnect(); return ais.status; });
-ipcMain.handle('ais:stop', () => { aisStop(); return true; });
-ipcMain.handle('ais:snapshot', () => ({ status: ais.status, error: ais.error, lastMsg: ais.lastMsg, vessels: [...ais.vessels.values()].filter((v) => v.lat !== undefined) }));
-
 ipcMain.handle('notify', (_e, { title, body, urgent }) => {
   if (!Notification.isSupported()) return false;
   const n = new Notification({ title, body, silent: true, urgency: urgent ? 'critical' : 'normal' });
@@ -248,4 +163,4 @@ app.whenReady().then(() => {
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
-app.on('window-all-closed', () => { sensorHub.stop(); if (process.platform !== 'darwin') app.quit(); });
+app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });

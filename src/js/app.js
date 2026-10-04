@@ -12,8 +12,8 @@
   const uid = () => Math.random().toString(36).slice(2, 9);
   function defaultSettings() {
     return {
-      provider: 'openmeteo', region: 'blacksea', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { depth: true, currents: true, ais: false }, currentsDensity: 'medium', widgetColor: 'value', sensors: { enabled: false, udpPort: 10110, httpPort: 8787, staleMin: 5, posMode: 'gps', lat: 44.9, lon: 35.4 }, ai: { enabled: false, model: 'google_weathernext2_ensemble', horizonH: 24 },
+      provider: 'openmeteo', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'medium', widgetColor: 'value',
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -33,8 +33,7 @@
     s: defaultSettings(), forecasts: {}, selectedId: null, alarms: [], acked: new Set(), ackedAt: {}, seen: new Set(), reminded: new Set(),
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
     crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
-    currents: { grid: null, fetchedAt: 0, busy: false },
-    ens: {}, ensBusy: false, ais: { timer: null, snap: null, hasKey: false }, sensors: { timer: null, snap: null, hist: [] }
+    currents: { grid: null, fetchedAt: 0, busy: false }
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -43,15 +42,18 @@
     const saved = await window.bridge.getSettings();
     if (saved) {
       const d = defaultSettings();
-      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) }, ai: { ...d.ai, ...(saved.ai || {}) }, sensors: { ...d.sensors, ...(saved.sensors || {}) } };
+      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) } };
       // make sure the new default indicators appear for existing installs
       ['d_icing', 'd_advFog'].forEach((id) => { if (!saved.display) return; if (!state.s.display.includes(id) && saved.display.length && !saved.seenIndicators) state.s.display.push(id); });
       state.s.seenIndicators = true;
       // 0.4.1: the right-panel layout became the default; migrate installs that still carry the old default once
       if (!saved.layoutV2) { state.s.layout = 'side'; state.s.layoutV2 = true; }
+      // 0.7.0: ship sensors, AIS, depth layer, AI ensemble and the Europe–Asia map were removed — drop their saved state
+      delete state.s.sensors; delete state.s.ai; delete state.s.region;
+      state.s.layers = { currents: state.s.layers.currents !== false };
+      state.s.points = (state.s.points || []).filter((p) => !p.own);
     }
     state.hasKey = await window.bridge.hasApiKey();
-    state.ais.hasKey = window.bridge.aisHasKey ? await window.bridge.aisHasKey() : false;
   }
   let saveT = null;
   function save() { clearTimeout(saveT); saveT = setTimeout(() => window.bridge.saveSettings(state.s), 150); }
@@ -79,46 +81,13 @@
   function fmtMetric(id, canonical) { return U.fmt(mKind(id), canonical, state.s.units); }
   function opSym(op) { return op === 'lte' ? '≤' : '≥'; }
   function pointById(id) { return state.s.points.find((p) => p.id === id); }
-  const OWN = 'ownship';
-  // Fresh live readings (within the staleness limit) as { metric: { value, t, note } }
-  function liveReadings() {
-    const sn = state.sensors.snap; if (!state.s.sensors.enabled || !sn || !sn.readings) return {};
-    const cut = Date.now() - (state.s.sensors.staleMin || 5) * 60e3, out = {};
-    Object.entries(sn.readings).forEach(([k, r]) => { if (r && r.t >= cut && r.value !== null && r.value !== undefined) out[k] = r; });
-    return out;
-  }
-  // Forecast view with the live readings injected as the "now" sample for OWN SHIP (used by the alarm engine)
-  function forecastsForAlarms() {
-    const live = liveReadings();
-    const fc = state.forecasts[OWN];
-    if (!fc || !Object.keys(live).length) return state.forecasts;
-    const now = Date.now(), v = {};
-    METRICS.forEach((m) => { v[m.id] = A.valueAt(fc.hours, m.id, now); });
-    const fcstP = v.pressure;
-    Object.entries(live).forEach(([k, r]) => { v[k] = r.value; });
-    let hours = fc.hours.filter((h) => Math.abs(h.t - now) > 60e3).map((h) => ({ t: h.t, v: { ...h.v } }));
-    // pressure: shift the past model hours by the live−model offset so the 3 h tendency is not a spurious jump;
-    // if we hold ≥ 3 h of live pressure history, use it instead.
-    if (live.pressure && fcstP !== null && fcstP !== undefined) {
-      const off = live.pressure.value - fcstP;
-      hours.forEach((h) => { if (h.t < now && h.v.pressure !== null && h.v.pressure !== undefined) h.v.pressure += off; });
-      const hist = state.sensors.hist.filter((x) => x.t >= now - 3.5 * 3600e3);
-      if (hist.length && now - hist[0].t >= 3 * 3600e3) hours = hours.map((h) => { if (h.t >= now - 3.5 * 3600e3 && h.t < now) { const near = hist.reduce((b, x) => (Math.abs(x.t - h.t) < Math.abs(b.t - h.t) ? x : b)); return { t: h.t, v: { ...h.v, pressure: near.p } }; } return h; });
-    }
-    hours = [...hours, { t: now, v }].sort((a, b) => a.t - b.t);
-    return { ...state.forecasts, [OWN]: { ...fc, hours } };
-  }
   function currentValues(pointId) {
     const fc = state.forecasts[pointId];
-    const live = pointId === OWN ? liveReadings() : {};
-    if (!fc && !Object.keys(live).length) return null;
+    if (!fc) return null;
     const now = Date.now(), v = {};
-    METRICS.forEach((m) => { v[m.id] = fc ? A.valueAt(fc.hours, m.id, now) : null; });
-    v.weatherCode = (() => { const h = fc ? (fc.hours.filter((x) => x.t <= now).pop() || fc.hours[0]) : null; return h ? h.v.weatherCode : null; })();
-    v.d_pressureTendency = fc ? A.pressureTendency(fc.hours, now) : null;
-    v._fcst = {}; v._live = {};
-    Object.entries(live).forEach(([k, r]) => { v._fcst[k] = v[k]; v[k] = r.value; v._live[k] = r.note || 'live'; });
-    if (pointId === OWN && live.pressure) { const view = forecastsForAlarms()[OWN]; if (view) v.d_pressureTendency = A.pressureTendency(view.hours, now); }
+    METRICS.forEach((m) => { v[m.id] = A.valueAt(fc.hours, m.id, now); });
+    v.weatherCode = (() => { const h = fc.hours.filter((x) => x.t <= now).pop() || fc.hours[0]; return h ? h.v.weatherCode : null; })();
+    v.d_pressureTendency = A.pressureTendency(fc.hours, now);
     return v;
   }
   function pointLevel(id) {
@@ -165,7 +134,6 @@
       const res = await window.bridge.fetchWeather(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params, source: state.s.sgSource, hours: 72 });
       res.forEach((fc) => { state.forecasts[fc.pointId] = fc; if (fc.meta && fc.meta.quota) state.quota = { used: fc.meta.used, quota: fc.meta.quota }; });
       state.lastRefresh = Date.now();
-      if (state.s.ai.enabled) refreshEnsemble();
       if (reason === 'manual') toast(t('updated'), 'ok');
     } catch (e) {
       state.error = e.message || String(e);
@@ -185,7 +153,7 @@
 
   // ------------------------------------------------------------------ alarms
   function evaluateAlarms() {
-    const alarms = A.evaluate(state.s.points, forecastsForAlarms(), state.s.thresholds, { leadMinutes: state.s.leadMin });
+    const alarms = A.evaluate(state.s.points, state.forecasts, state.s.thresholds, { leadMinutes: state.s.leadMin });
     const keys = new Set(alarms.map((a) => a.key));
     [...state.seen].forEach((k) => { if (!keys.has(k)) { state.seen.delete(k); state.acked.delete(k); state.reminded.delete(k); delete state.ackedAt[k]; } });
     const fresh = alarms.filter((a) => !state.seen.has(a.key));
@@ -249,11 +217,10 @@
       el.querySelector('.st').textContent = lvl === 'critical' ? t('st_crit') : lvl === 'warning' ? t('st_warn') : t('st_ok');
       el.addEventListener('click', () => select(p.id));
       el.addEventListener('dblclick', () => { select(p.id); if (map) map.flyTo(p.lon, p.lat, 4); });
-      if (p.own) el.querySelector('.rm').hidden = true;
       el.querySelector('.rm').addEventListener('click', (ev) => { ev.stopPropagation(); removePoint(p.id); });
       list.appendChild(el);
     });
-    $('pointCount').textContent = `${pad2(state.s.points.filter((x) => !x.own).length)} / ${MAX_POINTS}`;
+    $('pointCount').textContent = `${pad2(state.s.points.length)} / ${MAX_POINTS}`;
     $('mapHint').hidden = state.s.points.length > 0;
     $('mapHint').textContent = state.s.points.length >= MAX_POINTS ? t('hint_max') : t('hint_click');
     if (map) map.setPoints(state.s.points);
@@ -268,8 +235,7 @@
       let critText = '';
       if (lvl === 'critical') { const a = state.alarms.find((x) => x.pointId === p.id && x.level === 'critical'); if (a) { const f = fmtMetric(a.metric, a.value); critText = `${f.text} ${f.unit}`.toUpperCase(); } }
       const cur = v && v.currentSpeed !== null && v.currentSpeed !== undefined && v.currentDirection !== null && v.currentDirection !== undefined ? v.currentDirection : null;
-      const hd = p.own && state.sensors.snap ? state.sensors.snap.heading : null;
-      st[p.id] = { level: lvl, windDir: v ? v.windDirection : null, curDir: cur, critText, heading: hd };
+      st[p.id] = { level: lvl, windDir: v ? v.windDirection : null, curDir: cur, critText };
     });
     map.setStates(st);
     map.setSelected(state.selectedId);
@@ -292,7 +258,7 @@
     $('selState').textContent = lvl === 'critical' ? t('selected_state_crit') : lvl === 'warning' ? t('selected_state_warn') : t('selected_state_ok');
     $('selState').className = `sel-state ${lvl}`;
     $('selName').textContent = p.name;
-    $('selCoords').textContent = `${U.fmtLat(p.lat)} ${U.fmtLon(p.lon)}` + (p.own ? ` · ${sensorsAgeText()}` : '');
+    $('selCoords').textContent = `${U.fmtLat(p.lat)} ${U.fmtLon(p.lon)}`;
     const fc = state.forecasts[p.id];
     const v = currentValues(p.id);
     grid.innerHTML = '';
@@ -326,13 +292,6 @@
         body = `<div class="c-val" data-val>${f.text}<span class="u">${f.unit}</span></div><div class="c-sub${m.id === 'pressure' && v.d_pressureTendency <= -3.5 ? ' warn' : ''}">${sub}</div>`;
       }
       card.innerHTML = head + body;
-      if (v._live && v._live[m.id]) {
-        card.classList.add('live');
-        const tag = document.createElement('span'); tag.className = 'live-tag'; tag.textContent = v._live[m.id] === 'apparent' ? t('live_apparent') : t('live');
-        card.querySelector('.c-head').insertBefore(tag, card.querySelector('[data-badge]'));
-        const f = v._fcst[m.id]; const sub = card.querySelector('.c-sub');
-        if (sub && f !== null && f !== undefined) { const ff = fmtMetric(m.id, f); sub.textContent = `${t('fcst')} ${ff.text} ${ff.unit} · ${sub.textContent}`; }
-      }
       if (editable) card.querySelector('[data-badge]').addEventListener('click', (ev) => { ev.stopPropagation(); openLimitEditor(m.id, card); });
       const valEl = card.querySelector('[data-val]');
       if (valEl) { const key = `${p.id}|${m.id}`, txt = valEl.textContent; if (state.lastShown[key] !== undefined && state.lastShown[key] !== txt) valEl.classList.add('flash'); state.lastShown[key] = txt; }
@@ -423,21 +382,6 @@
       const crit = al.find((a) => a.level === 'critical'), warn = al.find((a) => a.level === 'warning');
       card.classList.toggle('critical', Boolean(crit));
       card.classList.toggle('warning', !crit && Boolean(warn));
-      // AI ensemble exceedance probability (optional)
-      let aiEl = card.querySelector('.c-ai');
-      if (aiEl) aiEl.remove();
-      const ens = state.s.ai.enabled ? state.ens[p.id] : null;
-      const thAi = thresholdFor(id, p.id);
-      if (ens && thAi && WA.ensemble.METRICS.includes(id)) {
-        const pm = WA.ensemble.probMax(ens, id, thAi.op, thAi.value, Date.now(), (state.s.ai.horizonH || 24) * 3600e3);
-        aiEl = document.createElement('div'); aiEl.className = 'c-ai';
-        if (pm) { aiEl.textContent = t('ai_badge', { p: Math.round(pm.p * 100), t: fmtClock(pm.t) }); aiEl.dataset.p = pm.p >= 0.7 ? 'hi' : pm.p >= 0.4 ? 'mid' : 'lo'; }
-        else aiEl.textContent = '';
-        card.appendChild(aiEl);
-      } else if (ens && WA.ensemble.METRICS.includes(id)) {
-        const sp = WA.ensemble.spreadAt(ens, id, Date.now());
-        if (sp) { const lo = fmtMetric(id, sp.p10), hi = fmtMetric(id, sp.p90); aiEl = document.createElement('div'); aiEl.className = 'c-ai'; aiEl.textContent = t('ai_spread', { lo: lo.text, hi: hi.text, u: hi.unit }); card.appendChild(aiEl); }
-      }
       // value-graded colouring
       card.classList.remove('wc-value', 'wc-bg');
       card.style.removeProperty('--wc'); card.style.removeProperty('--wc-bg');
@@ -520,7 +464,7 @@
   // ------------------------------------------------------------------ points
   function select(id) { state.selectedId = id; renderPoints(); renderSelected(); renderMapStates(); }
   function addPoint(name, lat, lon) {
-    if (state.s.points.filter((x) => !x.own).length >= MAX_POINTS) { toast(t('max_points', { n: MAX_POINTS }), 'err'); return false; }
+    if (state.s.points.length >= MAX_POINTS) { toast(t('max_points', { n: MAX_POINTS }), 'err'); return false; }
     if (!map.inRegion(lat, lon)) { toast(t('outside_region', { r: map.region().name }), 'err'); return false; }
     const p = { id: uid(), name: name || t('point_default', { n: state.s.points.length + 1 }), lat, lon };
     state.s.points.push(p); save(); state.selectedId = p.id; renderAll();
@@ -720,12 +664,9 @@
     const s = state.s;
     state.settingsDraft = JSON.parse(JSON.stringify({ thresholds: s.thresholds }));
     $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
-    $('setRegion').value = s.region; $('setProjection').value = s.projection; $('setLang').value = s.lang;
+    $('setProjection').value = s.projection; $('setLang').value = s.lang;
     renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side'; $('setWidgetColor').value = s.widgetColor || 'off';
     $('setCurrentsDensity').value = s.currentsDensity || 'medium'; renderDensityHint();
-    $('setAiEnabled').checked = Boolean(s.ai.enabled); $('setAiModel').value = s.ai.model; $('setAiHorizon').value = String(s.ai.horizonH || 24);
-    $('setSensorsEnabled').checked = Boolean(s.sensors.enabled); $('setSensorsUdp').value = s.sensors.udpPort; $('setSensorsHttp').value = s.sensors.httpPort; $('setSensorsStale').value = String(s.sensors.staleMin); $('setSensorsPosMode').value = s.sensors.posMode; $('setSensorsFixed').value = `${s.sensors.lat.toFixed(4)}, ${s.sensors.lon.toFixed(4)}`; renderSensorsStatus();
-    $('setAisEnabled').checked = Boolean(s.layers.ais); $('setAisKey').value = ''; $('setAisKey').placeholder = state.ais.hasKey ? t('apikey_stored') : t('ais_key_ph');
     $('setApiKey').value = ''; $('setApiKey').placeholder = state.hasKey ? t('apikey_stored') : t('apikey_ph');
     $('setLead').value = s.leadMin; $('setLeadOut').textContent = `${s.leadMin} MIN`;
     $('setVolume').value = s.volume; $('setVolumeOut').textContent = `${s.volume} %`;
@@ -823,9 +764,9 @@
   });
   $('btnSaveSettings').addEventListener('click', async () => {
     const s = state.s;
-    const prevRegion = s.region, prevProj = s.projection, prevProvider = s.provider, prevUnits = JSON.stringify(s.units);
+    const prevProj = s.projection, prevProvider = s.provider, prevUnits = JSON.stringify(s.units);
     s.provider = $('setProvider').value; s.refreshMin = Number($('setRefresh').value); s.sgSource = $('setSgSource').value;
-    s.region = $('setRegion').value; s.projection = $('setProjection').value; s.lang = $('setLang').value;
+    s.projection = $('setProjection').value; s.lang = $('setLang').value;
     s.tz = $('setTz').value === 'local' ? 'local' : Number($('setTz').value);
     s.leadMin = Number($('setLead').value); s.volume = Number($('setVolume').value);
     s.sound = $('setSound').checked; s.notify = $('setNotify').checked; s.flash = $('setFlash').checked;
@@ -833,26 +774,15 @@
     const picked = [...document.querySelectorAll('#metricPicker input[data-mid]:checked')].map((i) => i.dataset.mid);
     s.display = [...s.display.filter((id) => picked.includes(id)), ...picked.filter((id) => !s.display.includes(id))];
     const prevLayout = s.layout; s.layout = $('setLayout').value; s.widgetColor = $('setWidgetColor').value;
-    const prevAi = JSON.stringify(s.ai);
-    s.ai = { enabled: $('setAiEnabled').checked, model: $('setAiModel').value, horizonH: Number($('setAiHorizon').value) };
-    const aisKey = $('setAisKey').value.trim();
-    if (aisKey) { await window.bridge.aisSetKey(aisKey); state.ais.hasKey = true; }
-    const prevAis = Boolean(s.layers.ais); s.layers.ais = $('setAisEnabled').checked;
     const prevDensity = s.currentsDensity; s.currentsDensity = $('setCurrentsDensity').value;
-    const prevSensors = JSON.stringify(s.sensors);
-    const fixed = U.parseCoords($('setSensorsFixed').value) || { lat: s.sensors.lat, lon: s.sensors.lon };
-    s.sensors = { enabled: $('setSensorsEnabled').checked, udpPort: Number($('setSensorsUdp').value) || 10110, httpPort: Number($('setSensorsHttp').value) || 8787, staleMin: Number($('setSensorsStale').value) || 5, posMode: $('setSensorsPosMode').value, lat: fixed.lat, lon: fixed.lon };
     const key = $('setApiKey').value.trim();
     if (key) { await window.bridge.setApiKey(key); state.hasKey = true; }
     if (s.provider === 'stormglass' && !state.hasKey) { toast(t('sg_needs_key'), 'err'); return; }
     WA.audio.setVolume(s.volume / 100);
     applyLanguage(s.lang);
-    if (prevRegion !== s.region || prevProj !== s.projection) { map.setRegion(s.region, s.projection); state.currents.grid = null; applyLayers(); }
+    if (prevProj !== s.projection) { map.setProjection(s.projection); applyLayers(); }
     if (prevLayout !== s.layout) applyLayout();
-    if (prevAi !== JSON.stringify(s.ai)) { state.ens = {}; if (s.ai.enabled) refreshEnsemble(); else applyCardStates(); }
-    if (prevAis !== s.layers.ais || aisKey) applyAis();
     if (prevDensity !== s.currentsDensity && s.layers.currents) refreshCurrents(true);
-    if (prevSensors !== JSON.stringify(s.sensors)) applySensors();
     state.settingsDraft = null;
     save(); schedule(); setView('home');
     if (prevProvider !== s.provider || key) { state.forecasts = {}; state.quota = null; }
@@ -901,17 +831,15 @@
   $('pillProvider').addEventListener('keydown', (ev) => { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); $('pillProvider').click(); } });
   document.addEventListener('click', () => { $('providerMenu').hidden = true; });
 
-  // ------------------------------------------------------------------ map layers: depth bands + surface currents
+  // ------------------------------------------------------------------ map layer: surface currents
   function applyLayers() {
-    map.setLayer('depth', state.s.layers.depth); map.setLayer('currents', state.s.layers.currents);
-    $('btnLayerDepth').classList.toggle('on', state.s.layers.depth);
+    map.setLayer('currents', state.s.layers.currents);
     $('btnLayerCurrents').classList.toggle('on', state.s.layers.currents);
     if (state.s.layers.currents) refreshCurrents();
     renderCurrentsMeta();
   }
-  $('btnLayerDepth').addEventListener('click', () => { state.s.layers.depth = !state.s.layers.depth; save(); applyLayers(); });
   $('btnLayerCurrents').addEventListener('click', () => { state.s.layers.currents = !state.s.layers.currents; save(); applyLayers(); });
-  // Lattice of sea points over the map window, masked by the 0 m depth band. Density is a setting:
+  // Lattice of sea points over the map window, kept off the land with the coastline mask. Density is a setting:
   // coarse ~1.0x0.6 deg (~90 pts), medium ~0.5x0.3 (~360), fine ~0.25x0.15 (~1400). Each point is one API call.
   const DENSITY = { coarse: { dlon: 1.0, dlat: 0.6, hours: 3, scale: 1 }, medium: { dlon: 0.5, dlat: 0.3, hours: 3, scale: 0.7 }, fine: { dlon: 0.25, dlat: 0.15, hours: 6, scale: 0.5 } };
   function densityCfg() { return DENSITY[state.s.currentsDensity] || DENSITY.medium; }
@@ -923,7 +851,6 @@
   function currentsLattice() { return latticeFor(state.s.currentsDensity); }
   async function refreshCurrents(force) {
     const c = state.currents;
-    if (map.regionKey() !== 'blacksea') return;
     if (c.busy) return;
     if (!force && c.grid && c.density === state.s.currentsDensity && Date.now() - c.fetchedAt < densityCfg().hours * 3600e3) { renderCurrentVectors(); return; }
     c.busy = true; renderCurrentsMeta();
@@ -947,101 +874,6 @@
   function renderCurrentsMeta() {
     const c = state.currents;
     $('currentsMeta').textContent = !state.s.layers.currents ? '' : c.busy && !c.grid ? t('currents_loading') : c.grid ? t('currents_meta', { t: fmtTime(c.fetchedAt), n: c.grid.filter((g) => g.hours.length).length }) : '';
-  }
-
-  // ------------------------------------------------------------------ AI ensemble (optional second opinion)
-  async function refreshEnsemble() {
-    if (!state.s.ai.enabled || state.ensBusy || !state.s.points.length) return;
-    state.ensBusy = true;
-    try {
-      const res = await window.bridge.fetchEnsemble(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), state.s.ai.model);
-      res.forEach((e) => { state.ens[e.pointId] = e; });
-    } catch (e) { toast(String(e.message || e), 'err'); }
-    finally { state.ensBusy = false; applyCardStates(); }
-  }
-
-  // ------------------------------------------------------------------ AIS vessel layer (optional, AISstream.io)
-  function aisBbox() { const r = map.region(); return { latMin: r.latMin, latMax: r.latMax, lonMin: r.lonMin, lonMax: r.lonMax }; }
-  async function applyAis() {
-    const on = Boolean(state.s.layers.ais);
-    $('btnLayerAis').hidden = !on && !state.ais.hasKey;
-    $('btnLayerAis').classList.toggle('on', on);
-    map.setLayer('ais', on);
-    if (on) {
-      if (!state.ais.hasKey && window.bridge.platform !== 'web') { toast(t('ais_needs_key'), 'err'); state.s.layers.ais = false; save(); $('btnLayerAis').classList.remove('on'); map.setLayer('ais', false); renderAisMeta(); return; }
-      await window.bridge.aisStart(aisBbox());
-      if (!state.ais.timer) state.ais.timer = setInterval(pollAis, 5000);
-      pollAis();
-    } else {
-      if (state.ais.timer) { clearInterval(state.ais.timer); state.ais.timer = null; }
-      await window.bridge.aisStop();
-      map.setVessels([]);
-    }
-    renderAisMeta();
-  }
-  async function pollAis() {
-    try { state.ais.snap = await window.bridge.aisSnapshot(); } catch (e) { return; }
-    map.setVessels(state.ais.snap.vessels || []);
-    renderAisMeta();
-  }
-  function renderAisMeta() {
-    const el = $('aisMeta');
-    if (!state.s.layers.ais) { el.textContent = ''; return; }
-    const sn = state.ais.snap;
-    if (!sn) { el.textContent = t('ais_status_connecting'); return; }
-    if (sn.status === 'live' || (sn.vessels && sn.vessels.length)) el.textContent = sn.status === 'mock' ? `${t('ais_status_mock')} · ${sn.vessels.length}` : t('ais_meta', { n: sn.vessels.length, t: sn.lastMsg ? fmtTime(sn.lastMsg) : '—' });
-    else el.textContent = t(`ais_status_${sn.status}`) || sn.status.toUpperCase();
-  }
-  $('btnLayerAis').addEventListener('click', () => { state.s.layers.ais = !state.s.layers.ais; save(); applyAis(); });
-
-  // ------------------------------------------------------------------ ship sensors (NMEA / JSON receiver → OWN SHIP point)
-  function ago(ms) { const sec = Math.round(ms / 1000); return sec < 90 ? t('ago_s', { s: sec }) : t('ago_m', { m: Math.round(sec / 60) }); }
-  function sensorsAgeText() {
-    const sn = state.sensors.snap; const live = liveReadings(); const n = Object.keys(live).length;
-    if (!sn || !sn.status || !sn.status.lastMsg) return t('sensors_none');
-    return n ? t('sensors_age', { n, ago: ago(Date.now() - sn.status.lastMsg) }) : t('sensors_stale_txt', { ago: ago(Date.now() - sn.status.lastMsg) });
-  }
-  function ensureOwnShip() {
-    const cfg = state.s.sensors; let p = state.s.points.find((x) => x.own);
-    if (!cfg.enabled) { if (p) { state.s.points = state.s.points.filter((x) => !x.own); delete state.forecasts[OWN]; if (state.selectedId === OWN) state.selectedId = state.s.points.length ? state.s.points[0].id : null; save(); } return; }
-    if (!p) { p = { id: OWN, name: t('ownship'), lat: cfg.lat, lon: cfg.lon, own: true }; state.s.points.unshift(p); save(); }
-  }
-  async function applySensors() {
-    const cfg = state.s.sensors;
-    if (state.sensors.timer) { clearInterval(state.sensors.timer); state.sensors.timer = null; }
-    if (!cfg.enabled) { await window.bridge.sensorsStop(); state.sensors.snap = null; ensureOwnShip(); renderAll(); return; }
-    await window.bridge.sensorsStart({ udpPort: Number(cfg.udpPort) || 10110, httpPort: Number(cfg.httpPort) || 8787 });
-    ensureOwnShip();
-    state.sensors.timer = setInterval(pollSensors, 2000);
-    pollSensors(); renderAll();
-    if (!state.forecasts[OWN]) refresh('auto');
-  }
-  async function pollSensors() {
-    try { state.sensors.snap = await window.bridge.sensorsSnapshot(); } catch (e) { return; }
-    const lp = state.sensors.snap && state.sensors.snap.readings && state.sensors.snap.readings.pressure;
-    if (lp && lp.t > Date.now() - 60e3) { const h = state.sensors.hist; if (!h.length || Date.now() - h[h.length - 1].t >= 60e3) { h.push({ t: Date.now(), p: lp.value }); if (h.length > 300) h.shift(); } }
-    const p = state.s.points.find((x) => x.own); if (!p) return;
-    const sn = state.sensors.snap, cfg = state.s.sensors;
-    let moved = false;
-    if (cfg.posMode !== 'fixed' && sn.position && sn.position.t > Date.now() - cfg.staleMin * 60e3 && map.inRegion(sn.position.lat, sn.position.lon)) {
-      if (Math.abs(sn.position.lat - p.lat) > 1e-4 || Math.abs(sn.position.lon - p.lon) > 1e-4) { p.lat = sn.position.lat; p.lon = sn.position.lon; moved = true; }
-    } else if (cfg.posMode === 'fixed' && (p.lat !== cfg.lat || p.lon !== cfg.lon)) { p.lat = cfg.lat; p.lon = cfg.lon; moved = true; }
-    if (moved) { save(); map.setPoints(state.s.points); const fc = state.forecasts[OWN]; if (!fc || (fc.lat !== undefined && Math.hypot(fc.lat - p.lat, fc.lon - p.lon) > 0.05)) { state.forecasts[OWN] = fc ? { ...fc, lat: p.lat, lon: p.lon } : undefined; refresh('auto'); } }
-    evaluateAlarms(); renderAlarms(); renderMapStates();
-    if (state.selectedId === OWN) renderSelected();
-    if (state.view === 'settings') renderSensorsStatus();
-  }
-  function renderSensorsStatus() {
-    const el = $('sensorsStatus'); const sn = state.sensors.snap;
-    if (!state.s.sensors.enabled) { el.textContent = t('sensors_status_off'); el.classList.remove('over'); return; }
-    if (!sn || !sn.status) { el.textContent = t('sensors_status_none'); return; }
-    const st = sn.status;
-    if (st.error) { el.textContent = t('sensors_status_err', { e: st.error }); el.classList.add('over'); return; }
-    el.classList.remove('over');
-    if (!st.lastMsg) { el.textContent = t('sensors_status_none'); return; }
-    const src = Object.keys(st.sources || {}).join(', ') || '—';
-    const readings = Object.entries(sn.readings || {}).map(([k, r]) => `${mShort(k)} ${fmtMetric(k, r.value).text} ${fmtMetric(k, r.value).unit}`).join(' · ');
-    el.innerHTML = `${t('sensors_status', { udp: st.udp || '—', tcp: st.tcp || '—', http: st.http || '—', msgs: st.msgs, ago: ago(Date.now() - st.lastMsg), src })}<br><span class="dim">${readings}</span>${sn.log && sn.log.length ? `<br><code>${sn.log[sn.log.length - 1]}</code>` : ''}`;
   }
 
   // ------------------------------------------------------------------ layout
@@ -1090,12 +922,9 @@
       onLod: () => renderMapStates(),
       onGrid: (step) => { const m = Math.round(step * 60); $('gridText').textContent = step >= 1 ? `${step}°` : `${m}'`; renderMapStates(); }
     });
-    map.setRegion(state.s.region, state.s.projection);
+    map.setProjection(state.s.projection);
     applyLayout();
-    window.bridge.loadMapData('depth').then((topo) => { map.setDepth(topo); applyLayers(); }).catch((e) => { toast(t('map_fail') + e.message, 'err'); applyLayers(); });
-    applyAis();
-    if (state.s.sensors.enabled) applySensors(); else ensureOwnShip(); // drop a stale OWN SHIP point when the receiver is off
-    if (state.s.ai.enabled) setTimeout(refreshEnsemble, 2000);
+    map.loadSeaMask().then(applyLayers, applyLayers);
     if (state.s.points.length && !state.selectedId) state.selectedId = state.s.points[0].id;
     tickClock(); setInterval(tickClock, 1000);
     renderAll(); schedule(); refresh('auto');

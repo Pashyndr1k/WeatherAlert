@@ -1,5 +1,5 @@
-﻿// Vector map with multiple levels of detail (GSHHG c/l/i/h/f for the Black Sea & Sea of Azov,
-// Natural Earth 50 m for the wide Europe–Asia view), Mercator or Albers conic projection,
+﻿// Vector map of the Black Sea & Sea of Azov with multiple levels of detail (GSHHG c/l/i/h/f),
+// Mercator or Albers conic projection,
 // adaptive labelled lat/lon graticule, port labels, pan/zoom, click-to-add, animated markers.
 (function () {
   'use strict';
@@ -21,11 +21,6 @@
         ['Poti', 42.15, 41.67], ['Batumi', 41.65, 41.64], ['Trabzon', 41.00, 39.72], ['Samsun', 41.29, 36.33],
         ['Sinop', 42.03, 35.15], ['Zonguldak', 41.46, 31.79], ['Ereğli', 41.28, 31.42]
       ]
-    },
-    eurasia: {
-      name: 'Europe & Asia',
-      lonMin: -30, lonMax: 180, latMin: -12, latMax: 82,
-      dataset: 'ne50', lod: [[1, 'ne']], ports: []
     }
   };
 
@@ -58,19 +53,17 @@
     const bg = svg.append('rect').attr('class', 'sea').attr('fill', 'url(#sea)');
     const root = svg.append('g').attr('class', 'root').attr('clip-path', 'url(#mapclip)');
     const gGrat = root.append('g').attr('class', 'graticule');
-    const gDepth = root.append('g').attr('class', 'depth');
     const gLand = root.append('g').attr('class', 'land');
     const gLakes = root.append('g').attr('class', 'lakes');
     const gRivers = root.append('g').attr('class', 'rivers');
     const gBorders = root.append('g').attr('class', 'borders');
     const gRegion = root.append('g').attr('class', 'region');
     const gCurrents = root.append('g').attr('class', 'currents');
-    const gVessels = root.append('g').attr('class', 'vessels');
     const gPorts = root.append('g').attr('class', 'ports');
     const gMarkers = root.append('g').attr('class', 'markers');
     const gLabels = svg.append('g').attr('class', 'grid-labels'); // screen-space, not zoomed
 
-    let regionKey = 'blacksea', region = REGIONS.blacksea;
+    const region = REGIONS.blacksea;
     let projKey = 'mercator';
     let projection = PROJECTIONS.mercator();
     let path = d3.geoPath(projection);
@@ -80,8 +73,8 @@
     const cache = {};   // `${dataset}:${res}` → { land, lakes, borders, rivers } GeoJSON feature arrays
     let currentRes = null;
     let loading = null;
-    let depthFeatures = null, currentVectors = [], vessels = [], vecScale = 1;
-    const layers = { depth: true, currents: true, ais: false };
+    let seaMask = null, currentVectors = [], vecScale = 1;
+    const layers = { currents: true };
 
     const zoom = d3.zoom().scaleExtent([1, 60]).on('zoom', (ev) => {
       transform = ev.transform; k = transform.k;
@@ -89,8 +82,6 @@
       root.selectAll('.marker').attr('transform', markerTransform);
       root.selectAll('.port').attr('transform', portTransform);
       root.selectAll('.cvec').attr('transform', vecTransform);
-      root.selectAll('.vessel').attr('transform', vesselTransform);
-      gVessels.selectAll('text').style('display', k >= 3 ? null : 'none');
       updateStrokes();
       drawGraticule();
       ensureLod();
@@ -100,8 +91,6 @@
     function markerTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; }
     function portTransform(d) { const [x, y] = projection([d[2], d[1]]); return `translate(${x},${y}) scale(${1 / k})`; }
     function vecTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k}) rotate(${d.dir})`; }
-    function vesselTransform(d) { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; }
-    function vesselClass(t) { if (t >= 70 && t <= 79) return 'cargo'; if (t >= 80 && t <= 89) return 'tanker'; if (t >= 60 && t <= 69) return 'passenger'; if (t === 30) return 'fishing'; return 'other'; }
     function updateStrokes() {
       gLand.selectAll('path').attr('stroke-width', 0.9 / k);
       gLakes.selectAll('path').attr('stroke-width', 0.5 / k);
@@ -109,8 +98,7 @@
       gBorders.selectAll('path').attr('stroke-width', 0.6 / k);
       gRegion.selectAll('path').attr('stroke-width', 1 / k);
       gGrat.selectAll('path').attr('stroke-width', 0.6 / k);
-      gDepth.selectAll('path').attr('stroke-width', 0.4 / k);
-      gPorts.style('display', k >= 1.6 || region.ports.length < 12 ? null : 'none');
+      gPorts.style('display', k >= 1.6 ? null : 'none');
     }
 
     // ---------- fit / resize ----------
@@ -155,13 +143,11 @@
       layer(gRivers, data && data.rivers);
       layer(gBorders, data && data.borders);
       gRegion.selectAll('path').data([regionOutline()]).join('path').attr('d', path);
-      gDepth.style('display', layers.depth && region.dataset === 'gshhg' ? null : 'none')
-        .selectAll('path').data(depthFeatures && region.dataset === 'gshhg' ? depthFeatures : []).join('path').attr('d', path).attr('data-depth', (f) => f.properties.depth);
       renderCurrents();
       updateStrokes();
     }
     function renderCurrents() {
-      gCurrents.style('display', layers.currents && region.dataset === 'gshhg' ? null : 'none');
+      gCurrents.style('display', layers.currents ? null : 'none');
       const sel = gCurrents.selectAll('g.cvec').data(currentVectors, (d) => `${d.lat},${d.lon}`);
       const enter = sel.enter().append('g').attr('class', 'cvec');
       enter.append('path').attr('class', 'shaft');
@@ -176,33 +162,19 @@
       all.select('path.head').attr('transform', (d) => `translate(0,${-len(d) / 2}) scale(${Math.max(0.6, vecScale)})`);
       all.select('title').text((d) => `${(d.speed * 1.943844).toFixed(2)} kn → ${Math.round(d.dir)}°`);
     }
-    function renderVessels() {
-      gVessels.style('display', layers.ais ? null : 'none');
-      const sel = gVessels.selectAll('g.vessel').data(vessels, (d) => d.mmsi);
-      const enter = sel.enter().append('g').attr('class', 'vessel');
-      enter.append('path').attr('class', 'hull').attr('d', 'M0,-7 L4.5,6 L0,3.5 L-4.5,6 Z');
-      enter.append('text').attr('x', 7).attr('y', 3);
-      enter.append('title');
-      sel.exit().remove();
-      const all = gVessels.selectAll('g.vessel');
-      all.attr('transform', vesselTransform).attr('data-type', (d) => vesselClass(d.type));
-      all.select('path.hull').attr('transform', (d) => `rotate(${d.heading !== undefined && d.heading !== null && d.heading < 360 ? d.heading : (d.cog || 0)})`);
-      all.select('text').text((d) => d.name || d.mmsi).style('display', k >= 3 ? null : 'none');
-      all.select('title').text((d) => `${d.name || ''} MMSI ${d.mmsi} · ${d.sog !== undefined && d.sog !== null ? d.sog.toFixed(1) + ' kn' : ''} ${d.cog !== undefined && d.cog !== null ? '→ ' + Math.round(d.cog) + '°' : ''}${d.dest ? ' · ' + d.dest : ''}`);
-    }
-    function setVessels(list) { vessels = list || []; renderVessels(); }
-    function setDepth(topo) {
-      depthFeatures = topo && topo.objects && topo.objects.depth ? topojson.feature(topo, topo.objects.depth).features : null;
-      redrawStatic();
-    }
     // Vectors: [{lat, lon, speed(m/s), dir(towards °)}]
     function setCurrents(vectors, scale) { currentVectors = vectors || []; vecScale = scale || 1; renderCurrents(); }
-    function setLayer(name, on) { layers[name] = Boolean(on); redrawStatic(); renderVessels(); }
-    // Is this lon/lat inside the sea (0 m depth band)? Used to keep the currents lattice off the land.
+    function setLayer(name, on) { layers[name] = Boolean(on); redrawStatic(); }
+    // Coastline mask for the currents lattice: the low-resolution land polygons, loaded once.
+    async function loadSeaMask() {
+      if (seaMask) return;
+      const land = toLayers(await handlers.loadData(region.dataset, 'l')).land;
+      seaMask = land.map((f) => ({ f, b: d3.geoBounds(f) }));
+    }
+    // Is this lon/lat on the water? Without the mask every point counts as sea (land points simply return no data).
     function isSea(lon, lat) {
-      if (!depthFeatures) return true;
-      const sea = depthFeatures.find((f) => f.properties.depth === 0);
-      return sea ? d3.geoContains(sea, [lon, lat]) : true;
+      if (!seaMask) return true;
+      return !seaMask.some(({ f, b }) => lon >= b[0][0] && lon <= b[1][0] && lat >= b[0][1] && lat <= b[1][1] && d3.geoContains(f, [lon, lat]));
     }
 
     // Graticule adapts to zoom; labels are drawn in screen space along the left and bottom edges.
@@ -248,7 +220,7 @@
         loading = key;
         try {
           const topo = await handlers.loadData(region.dataset, res);
-          cache[key] = toLayers(topo, region.dataset);
+          cache[key] = toLayers(topo);
         } catch (e) {
           console.error('map data load failed', e);
           loading = null;
@@ -261,11 +233,7 @@
       redrawStatic();
       if (handlers.onLod) handlers.onLod(res);
     }
-    function toLayers(topo, dataset) {
-      if (dataset === 'ne50') {
-        const countries = topojson.feature(topo, topo.objects.countries);
-        return { land: countries.features, lakes: [], rivers: [], borders: [topojson.mesh(topo, topo.objects.countries, (a, b) => a !== b)] };
-      }
+    function toLayers(topo) {
       const f = (name) => (topo.objects[name] ? topojson.feature(topo, topo.objects[name]).features : []);
       return { land: f('land'), lakes: f('lakes'), rivers: f('rivers'), borders: f('borders') };
     }
@@ -288,7 +256,7 @@
       enter.append('g').attr('class', 'arrow').append('path').attr('d', 'M0,-30 L4,-22 L1.5,-22 L1.5,-14 L-1.5,-14 L-1.5,-22 L-4,-22 Z');
       enter.append('g').attr('class', 'carrow').append('path').attr('d', 'M0,-30 L4,-22 L1.5,-22 L1.5,-14 L-1.5,-14 L-1.5,-22 L-4,-22 Z');
       // downward triangle 14 x 12 whose tip sits exactly on the coordinate
-      enter.append('path').attr('class', 'tri').attr('d', (d) => d.own ? 'M0,-9 L5,5 L0,2 L-5,5 Z' : 'M-7,-12 L7,-12 L0,0 Z');
+      enter.append('path').attr('class', 'tri').attr('d', 'M-7,-12 L7,-12 L0,0 Z');
       enter.append('text').attr('class', 'label').attr('x', 0).attr('y', 14);
       enter.append('text').attr('class', 'sub').attr('x', 0).attr('y', 26);
       enter.on('click', (ev, d) => { ev.stopPropagation(); handlers.onSelect && handlers.onSelect(d.id); });
@@ -296,12 +264,10 @@
       sel.exit().transition().duration(300).style('opacity', 0).remove();
       const all = gMarkers.selectAll('g.marker');
       all.attr('transform', markerTransform)
-        .classed('own', (d) => Boolean(d.own))
         .classed('selected', (d) => d.id === selectedId)
         .classed('warning', (d) => (states[d.id] || {}).level === 'warning')
         .classed('critical', (d) => (states[d.id] || {}).level === 'critical');
       all.select('text.label').text((d) => { const st = states[d.id] || {}; return st.level === 'critical' && st.critText ? `${d.name} · ${st.critText}` : d.name; });
-      all.select('path.tri').attr('transform', (d) => (d.own && states[d.id] && states[d.id].heading !== null && states[d.id].heading !== undefined ? `rotate(${states[d.id].heading})` : null));
       all.select('text.sub').text((d) => (states[d.id] || {}).sub || '');
       all.select('g.arrow').style('display', (d) => (states[d.id] && states[d.id].windDir !== null && states[d.id].windDir !== undefined ? null : 'none'))
         .transition().duration(900).ease(d3.easeCubicOut)
@@ -314,8 +280,7 @@
     }
 
     // ---------- public API ----------
-    function setRegion(key, pKey) {
-      regionKey = REGIONS[key] ? key : 'blacksea'; region = REGIONS[regionKey];
+    function setProjection(pKey) {
       projKey = PROJECTIONS[pKey] ? pKey : 'mercator';
       projection = PROJECTIONS[projKey]();
       path = d3.geoPath(projection);
@@ -350,7 +315,7 @@
     new ResizeObserver(() => resize()).observe(container);
     resize();
 
-    return { setRegion, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, regionKey: () => regionKey, lod: () => currentRes, setDepth, setCurrents, setLayer, isSea, setVessels };
+    return { setProjection, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, lod: () => currentRes, setCurrents, setLayer, isSea, loadSeaMask };
   }
 
   WA.map = { createMap, REGIONS, PROJECTIONS };

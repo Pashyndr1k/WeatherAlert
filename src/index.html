@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://ensemble-api.open-meteo.com https://api.stormglass.io wss://stream.aisstream.io; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; script-src 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' https://api.open-meteo.com https://marine-api.open-meteo.com https://api.stormglass.io; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; script-src 'self'" />
   <title>WeatherAlert</title>
   <link rel="stylesheet" href="../assets/fonts/fonts.css" />
   <link rel="stylesheet" href="styles.css" />
@@ -78,13 +78,10 @@
         </div>
         <div class="map-corner">
           <div class="layer-btns">
-            <button class="layer-btn" id="btnLayerDepth" data-i18n-title="layer_depth" type="button"><svg viewBox="0 0 20 20"><path d="M2 6c3-2 5 2 8 0s5-2 8 0M2 10c3-2 5 2 8 0s5-2 8 0M2 14c3-2 5 2 8 0s5-2 8 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
-            <button class="layer-btn ais" id="btnLayerAis" data-i18n-title="layer_ais" type="button" hidden><svg viewBox="0 0 20 20"><path d="M3 13h14l-2 3H5z M6 13V7h8v6 M9 7V4h2v3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
             <button class="layer-btn" id="btnLayerCurrents" data-i18n-title="layer_currents" type="button"><svg viewBox="0 0 20 20"><path d="M3 10h11M11 6l4 4-4 4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 15h6M3 5h6" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" opacity=".6"/></svg></button>
           </div>
           <div class="map-meta" id="readoutMeta">—</div>
           <div class="map-meta dim" id="currentsMeta"></div>
-          <div class="map-meta dim ais-meta" id="aisMeta"></div>
         </div>
       </section>
 
@@ -136,7 +133,6 @@
         <button class="tab" data-tab="metrics" data-i18n="tab_metrics">METRICS</button>
         <button class="tab" data-tab="thresholds" data-i18n="tab_thresholds">THRESHOLDS</button>
         <button class="tab" data-tab="alerts" data-i18n="tab_alerts">ALERTS &amp; UNITS</button>
-        <button class="tab" data-tab="sensors" data-i18n="tab_sensors">SENSORS</button>
       </nav>
       <div class="pane-wrap">
         <!-- provider -->
@@ -167,28 +163,12 @@
             </label>
           </div>
           <div class="note-box" id="budgetBox"></div>
-          <h2 class="sub-h" data-i18n="ai_title">AI ENSEMBLE (OPTIONAL)</h2>
-          <div class="field-row checks">
-            <label class="check"><input type="checkbox" id="setAiEnabled" /><i></i><span data-i18n="ai_enable"></span></label>
-          </div>
-          <div class="field-row">
-            <label class="field"><span data-i18n="ai_model">MODEL</span>
-              <select id="setAiModel"><option value="google_weathernext2_ensemble">Google DeepMind WeatherNext 2 — 64 members, 0.25°</option><option value="ecmwf_aifs025_ensemble">ECMWF AIFS ensemble — 51 members, 0.25°</option></select>
-            </label>
-            <label class="field"><span data-i18n="ai_horizon">PROBABILITY HORIZON</span>
-              <select id="setAiHorizon"><option value="12">12 h</option><option value="24">24 h</option><option value="48">48 h</option></select>
-            </label>
-          </div>
-          <div class="note-box" data-i18n="ai_note"></div>
         </section>
 
         <!-- map -->
         <section class="tab-pane" data-pane="map">
           <h1 class="pane-title" data-i18n="tab_map">MAP</h1>
           <div class="field-row">
-            <label class="field"><span data-i18n="map_window">MAP WINDOW</span>
-              <select id="setRegion"><option value="blacksea" data-i18n="region_bs"></option><option value="eurasia" data-i18n="region_ea"></option></select>
-            </label>
             <label class="field"><span data-i18n="projection">PROJECTION</span>
               <select id="setProjection"><option value="mercator" data-i18n="proj_opt_merc"></option><option value="albers" data-i18n="proj_opt_albers"></option></select>
             </label>
@@ -204,17 +184,6 @@
               <small class="hint" id="densityHint"></small>
             </label>
           </div>
-          <h2 class="sub-h" data-i18n="ais_title">AIS VESSEL LAYER (OPTIONAL)</h2>
-          <div class="field-row checks">
-            <label class="check"><input type="checkbox" id="setAisEnabled" /><i></i><span data-i18n="ais_enable"></span></label>
-          </div>
-          <div class="field-row">
-            <label class="field"><span data-i18n="ais_key">AISSTREAM.IO API KEY</span>
-              <input id="setAisKey" type="password" autocomplete="off" data-i18n-ph="ais_key_ph" />
-              <small class="hint" data-i18n="ais_key_hint"></small>
-            </label>
-          </div>
-          <div class="note-box warn" data-i18n="ais_caveat"></div>
         </section>
 
         <!-- metrics -->
@@ -237,30 +206,6 @@
             <span class="th-unit" id="thUnit"></span>
             <button class="lbl-btn light" id="btnAddThreshold" data-i18n="add_threshold">ADD THRESHOLD</button>
           </div>
-        </section>
-
-        <!-- sensors -->
-        <section class="tab-pane" data-pane="sensors">
-          <h1 class="pane-title" data-i18n="tab_sensors">SENSORS</h1>
-          <p class="pane-intro" data-i18n="sensors_intro"></p>
-          <div class="field-row checks">
-            <label class="check"><input type="checkbox" id="setSensorsEnabled" /><i></i><span data-i18n="sensors_enable"></span></label>
-          </div>
-          <div class="field-row">
-            <label class="field"><span data-i18n="sensors_udp">NMEA 0183 PORT (UDP + TCP)</span><input id="setSensorsUdp" type="number" min="1024" max="65535" /></label>
-            <label class="field"><span data-i18n="sensors_http">JSON HTTP PORT</span><input id="setSensorsHttp" type="number" min="1024" max="65535" /></label>
-            <label class="field"><span data-i18n="sensors_stale">STALENESS LIMIT</span>
-              <select id="setSensorsStale"><option value="2">2 min</option><option value="5">5 min</option><option value="15">15 min</option><option value="60">60 min</option></select>
-            </label>
-          </div>
-          <div class="field-row">
-            <label class="field"><span data-i18n="sensors_pos">OWN SHIP POSITION</span>
-              <select id="setSensorsPosMode"><option value="gps" data-i18n="sensors_pos_gps"></option><option value="fixed" data-i18n="sensors_pos_fixed"></option></select>
-            </label>
-            <label class="field"><span data-i18n="sensors_fixed">FIXED COORDINATES (WGS84)</span><input id="setSensorsFixed" type="text" data-i18n-ph="coords_ph" /></label>
-          </div>
-          <div class="note-box" id="sensorsStatus"></div>
-          <div class="note-box" data-i18n="sensors_note"></div>
         </section>
 
         <!-- alerts & units -->
@@ -367,7 +312,6 @@
   <script src="js/guide.js"></script>
   <script src="js/units.js"></script>
   <script src="js/alarms.js"></script>
-  <script src="js/ensemble.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/map.js"></script>
   <script src="js/app.js"></script>
