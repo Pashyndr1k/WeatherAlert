@@ -6,6 +6,7 @@
   "main": "main.js",
   "private": true,
   "scripts": {
+    "prestart": "node tools/ensure-electron.js",
     "start": "electron .",
     "dist": "electron-builder",
     "dist:win": "electron-builder --win",

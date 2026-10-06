@@ -10,7 +10,7 @@ if errorlevel 1 (
   exit /b 1
 )
 
-if not exist "node_modules\electron\dist\electron.exe" (
+if not exist "node_modules" (
   echo Installing dependencies ^(first run only^)...
   call npm install --no-audit --no-fund
   if errorlevel 1 (
@@ -18,6 +18,13 @@ if not exist "node_modules\electron\dist\electron.exe" (
     pause
     exit /b 1
   )
+)
+
+rem The Electron download can be skipped or fail silently during npm install; fetch it if it is missing.
+node tools\ensure-electron.js
+if errorlevel 1 (
+  pause
+  exit /b 1
 )
 
 echo Starting WeatherAlert...
