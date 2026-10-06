@@ -170,6 +170,21 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .layer-btn svg { width: 18px; height: 18px; }
 .layer-btn:hover { border-color: var(--line-3); color: var(--text); }
 .layer-btn.on { color: #5fb0f0; border-color: #5fb0f0; }
+.layer-btn.ruler.on { color: var(--warn); border-color: var(--warn); }
+/* ---------- route ruler ---------- */
+.map-svg .ruler path.leg { fill: none; stroke: var(--warn); stroke-linecap: round; }
+.map-svg .ruler path.leg.live { stroke: rgba(240, 178, 58, .55); }
+.map-svg .ruler .wp circle { fill: var(--bg); stroke: var(--warn); stroke-width: 1.5; }
+.map-svg .ruler .wp text { fill: var(--warn); font-size: 10px; text-anchor: middle; font-weight: 600; }
+.ruler-labels text { fill: var(--warn); font-size: 10px; letter-spacing: .06em; text-anchor: middle; paint-order: stroke; stroke: var(--bg); stroke-width: 3px; pointer-events: none; }
+.ruler-labels text.live { fill: rgba(240, 178, 58, .7); }
+.ruler-panel { background: rgba(0, 0, 0, .72); border: 1px solid var(--warn); padding: 8px 10px; min-width: 210px; color: var(--text); }
+.ruler-panel .rh { color: var(--warn); letter-spacing: .14em; margin-bottom: 6px; }
+.ruler-panel .rl, .ruler-panel .rt { display: grid; grid-template-columns: 22px 48px 1fr; gap: 8px; padding: 2px 0; }
+.ruler-panel .rl span:last-child, .ruler-panel .rt span:last-child { text-align: right; }
+.ruler-panel .rl.live { color: var(--text-4); }
+.ruler-panel .rt { grid-template-columns: 1fr auto; border-top: 1px solid var(--line-2); margin-top: 4px; padding-top: 5px; color: var(--warn); }
+.ruler-panel .rhint { margin-top: 6px; font-size: 9px; color: var(--text-4); letter-spacing: .1em; white-space: normal; max-width: 230px; }
 .legend span { display: inline-flex; align-items: center; gap: 6px; }
 .legend .sq { width: 8px; height: 8px; display: inline-block; }
 .legend .sq.normal { background: var(--text); } .legend .sq.warn { background: var(--warn); } .legend .sq.crit { background: var(--accent); }

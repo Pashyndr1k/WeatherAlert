@@ -33,7 +33,7 @@
     s: defaultSettings(), forecasts: {}, selectedId: null, alarms: [], acked: new Set(), ackedAt: {}, seen: new Set(), reminded: new Set(),
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
     crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
-    currents: { grid: null, fetchedAt: 0, busy: false }
+    currents: { grid: null, fetchedAt: 0, busy: false }, ruler: { on: false, sum: null }
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -491,7 +491,7 @@
       if (ev.key === 'Escape') { ev.preventDefault(); snoozeCrit(); return; }
       if (ev.key === 'Enter') { ev.preventDefault(); ackCrit(); return; }
     }
-    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); }
+    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); if (state.ruler.on && map) map.clearRuler(); }
   });
   function openAddPoint(prefill) {
     $('ptName').value = '';
@@ -876,6 +876,24 @@
     $('currentsMeta').textContent = !state.s.layers.currents ? '' : c.busy && !c.grid ? t('currents_loading') : c.grid ? t('currents_meta', { t: fmtTime(c.fetchedAt), n: c.grid.filter((g) => g.hours.length).length }) : '';
   }
 
+  // ------------------------------------------------------------------ route ruler (bottom-right button)
+  function fmtDist(km) { const nm = km / 1.852; return state.s.units.vis === 'km' ? `${km.toFixed(km < 10 ? 2 : 1)} km` : `${nm.toFixed(nm < 10 ? 2 : 1)} NM`; }
+  const fmtBrg = (b) => `${String(Math.round(b) % 360).padStart(3, '0')}°`;
+  function rulerLabel(km, brg) { return `${fmtDist(km)} · ${fmtBrg(brg)}`; }
+  function setRulerMode(on) {
+    state.ruler.on = on; $('btnRuler').classList.toggle('on', on);
+    map.setRuler(on, rulerLabel);
+  }
+  function renderRuler(sum) {
+    state.ruler.sum = sum;
+    const el = $('rulerPanel'); el.hidden = !state.ruler.on; if (!state.ruler.on) return;
+    const row = (i, l, cls) => `<div class="rl${cls}"><span>${pad2(i)}</span><span>${fmtBrg(l.brg)}</span><span>${fmtDist(l.km)}</span></div>`;
+    const rows = sum.legs.map((l, i) => row(i + 1, l, '')).join('') + (sum.cursorLeg ? row(sum.legs.length + 1, sum.cursorLeg, ' live') : '');
+    const hint = !sum.points.length ? t('ruler_hint') : sum.done ? t('ruler_done') : t('ruler_hint_more');
+    el.innerHTML = `<div class="rh">${t('ruler_title')}${sum.points.length ? ` · ${sum.points.length} WP` : ''}</div>${rows}<div class="rt"><span>${t('ruler_total')}</span><span>${fmtDist(sum.totalKm)}</span></div><div class="rhint">${hint}</div>`;
+  }
+  $('btnRuler').addEventListener('click', () => setRulerMode(!state.ruler.on));
+
   // ------------------------------------------------------------------ layout
   function applyLayout() {
     $('viewHome').dataset.layout = state.s.layout || 'side';
@@ -918,6 +936,7 @@
         tag.style.left = `${ll.px + 14}px`; tag.style.top = `${ll.py + 14}px`;
       },
       onLeave: () => { $('cursorTag').hidden = true; },
+      onRuler: renderRuler,
       loadData: (dataset, res) => window.bridge.loadMapData(dataset, res),
       onLod: () => renderMapStates(),
       onGrid: (step) => { const m = Math.round(step * 60); $('gridText').textContent = step >= 1 ? `${step}°` : `${m}'`; renderMapStates(); }

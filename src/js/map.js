@@ -59,9 +59,11 @@
     const gBorders = root.append('g').attr('class', 'borders');
     const gRegion = root.append('g').attr('class', 'region');
     const gCurrents = root.append('g').attr('class', 'currents');
+    const gRuler = root.append('g').attr('class', 'ruler');
     const gPorts = root.append('g').attr('class', 'ports');
     const gMarkers = root.append('g').attr('class', 'markers');
     const gLabels = svg.append('g').attr('class', 'grid-labels'); // screen-space, not zoomed
+    const gRulerLabels = svg.append('g').attr('class', 'ruler-labels'); // screen-space leg distances
 
     const region = REGIONS.blacksea;
     let projKey = 'mercator';
@@ -75,6 +77,7 @@
     let loading = null;
     let seaMask = null, currentVectors = [], vecScale = 1;
     const layers = { currents: true };
+    const ruler = { active: false, done: false, pts: [], cursor: null, fmt: null };
 
     const zoom = d3.zoom().scaleExtent([1, 60]).on('zoom', (ev) => {
       transform = ev.transform; k = transform.k;
@@ -84,6 +87,7 @@
       root.selectAll('.cvec').attr('transform', vecTransform);
       updateStrokes();
       drawGraticule();
+      drawRuler();
       ensureLod();
     });
     svg.call(zoom).on('dblclick.zoom', null);
@@ -132,6 +136,7 @@
       renderMarkers();
       renderPorts();
       drawGraticule();
+      drawRuler();
     }
 
     // ---------- static layers ----------
@@ -259,7 +264,7 @@
       enter.append('path').attr('class', 'tri').attr('d', 'M-7,-12 L7,-12 L0,0 Z');
       enter.append('text').attr('class', 'label').attr('x', 0).attr('y', 14);
       enter.append('text').attr('class', 'sub').attr('x', 0).attr('y', 26);
-      enter.on('click', (ev, d) => { ev.stopPropagation(); handlers.onSelect && handlers.onSelect(d.id); });
+      enter.on('click', (ev, d) => { if (ruler.active) return; ev.stopPropagation(); handlers.onSelect && handlers.onSelect(d.id); });
       enter.transition().duration(450).style('opacity', 1);
       sel.exit().transition().duration(300).style('opacity', 0).remove();
       const all = gMarkers.selectAll('g.marker');
@@ -278,6 +283,49 @@
         .attr('transform', (d) => `rotate(${(states[d.id] || {}).curDir || 0})`);
       gMarkers.selectAll('g.marker').filter((d) => d.id === selectedId).raise();
     }
+
+    // ---------- ruler: measure a multi-leg route (great-circle legs) ----------
+    const R_KM = 6371.0088, toR = Math.PI / 180;
+    function distKm(a, b) {
+      const dLat = (b.lat - a.lat) * toR, dLon = (b.lon - a.lon) * toR;
+      const h = Math.sin(dLat / 2) ** 2 + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLon / 2) ** 2;
+      return 2 * R_KM * Math.asin(Math.sqrt(h));
+    }
+    function bearingDeg(a, b) {
+      const y = Math.sin((b.lon - a.lon) * toR) * Math.cos(b.lat * toR);
+      const x = Math.cos(a.lat * toR) * Math.sin(b.lat * toR) - Math.sin(a.lat * toR) * Math.cos(b.lat * toR) * Math.cos((b.lon - a.lon) * toR);
+      return (Math.atan2(y, x) / toR + 360) % 360;
+    }
+    function rulerSegments() {
+      const segs = [];
+      for (let i = 1; i < ruler.pts.length; i++) segs.push({ a: ruler.pts[i - 1], b: ruler.pts[i], live: false });
+      if (ruler.active && !ruler.done && ruler.cursor && ruler.pts.length) segs.push({ a: ruler.pts[ruler.pts.length - 1], b: ruler.cursor, live: true });
+      return segs;
+    }
+    function rulerSummary() {
+      const legs = rulerSegments().map((s) => ({ km: distKm(s.a, s.b), brg: bearingDeg(s.a, s.b), live: s.live }));
+      const fixed = legs.filter((l) => !l.live);
+      return { active: ruler.active, done: ruler.done, points: ruler.pts.slice(), legs: fixed, cursorLeg: legs.find((l) => l.live) || null, totalKm: fixed.reduce((s, l) => s + l.km, 0) };
+    }
+    function emitRuler() { if (handlers.onRuler) handlers.onRuler(rulerSummary()); }
+    function drawRuler() {
+      const segs = rulerSegments();
+      const line = (s) => ({ type: 'LineString', coordinates: [[s.a.lon, s.a.lat], [s.b.lon, s.b.lat]] });
+      gRuler.selectAll('path.leg').data(segs).join('path').attr('class', (s) => `leg${s.live ? ' live' : ''}`)
+        .attr('d', (s) => path(line(s))).attr('stroke-width', 1.4 / k).attr('stroke-dasharray', (s) => (s.live ? `${2 / k} ${3 / k}` : `${6 / k} ${3 / k}`));
+      const wp = gRuler.selectAll('g.wp').data(ruler.pts).join((enter) => { const g = enter.append('g').attr('class', 'wp'); g.append('circle').attr('r', 4); g.append('text').attr('y', -8); return g; });
+      wp.attr('transform', (d) => { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; });
+      wp.select('text').text((d, i) => i + 1);
+      const labels = segs.map((s) => {
+        const mid = d3.geoInterpolate([s.a.lon, s.a.lat], [s.b.lon, s.b.lat])(0.5);
+        const p = transform.apply(projection(mid));
+        return { x: p[0], y: p[1] - 7, live: s.live, t: ruler.fmt ? ruler.fmt(distKm(s.a, s.b), bearingDeg(s.a, s.b)) : '' };
+      });
+      gRulerLabels.selectAll('text').data(labels).join('text').attr('x', (d) => d.x).attr('y', (d) => d.y).attr('class', (d) => (d.live ? 'live' : null)).text((d) => d.t);
+    }
+    // fmt(km, bearing) renders the on-map leg label in the app's units
+    function setRuler(on, fmt) { ruler.active = Boolean(on); ruler.done = false; ruler.pts = []; ruler.cursor = null; if (fmt) ruler.fmt = fmt; svg.classed('ruler', ruler.active); drawRuler(); emitRuler(); }
+    function clearRuler() { ruler.done = false; ruler.pts = []; ruler.cursor = null; drawRuler(); emitRuler(); }
 
     // ---------- public API ----------
     function setProjection(pKey) {
@@ -303,19 +351,32 @@
     svg.on('click', (ev) => {
       const [px, py] = d3.pointer(ev, svg.node());
       const ll = projection.invert(transform.invert([px, py]));
-      if (ll && handlers.onMapClick) handlers.onMapClick({ lon: ll[0], lat: ll[1] });
+      if (!ll) return;
+      if (ruler.active) {
+        if (ruler.done) { ruler.pts = []; ruler.done = false; }
+        ruler.pts.push({ lon: ll[0], lat: ll[1] }); ruler.cursor = null;
+        drawRuler(); emitRuler(); return;
+      }
+      if (handlers.onMapClick) handlers.onMapClick({ lon: ll[0], lat: ll[1] });
+    });
+    svg.on('contextmenu', (ev) => {
+      ev.preventDefault();
+      if (!ruler.active) return;
+      if (ruler.done || ruler.pts.length < 2) { clearRuler(); return; }
+      ruler.done = true; ruler.cursor = null; drawRuler(); emitRuler();
     });
     svg.on('mousemove', (ev) => {
       const [px, py] = d3.pointer(ev, svg.node());
       const ll = projection.invert(transform.invert([px, py]));
       if (ll && handlers.onHover) handlers.onHover({ lon: ll[0], lat: ll[1], px, py });
+      if (ll && ruler.active && !ruler.done && ruler.pts.length) { ruler.cursor = { lon: ll[0], lat: ll[1] }; drawRuler(); emitRuler(); }
     });
-    svg.on('mouseleave', () => { if (handlers.onLeave) handlers.onLeave(); });
+    svg.on('mouseleave', () => { if (handlers.onLeave) handlers.onLeave(); if (ruler.cursor) { ruler.cursor = null; drawRuler(); emitRuler(); } });
 
     new ResizeObserver(() => resize()).observe(container);
     resize();
 
-    return { setProjection, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, lod: () => currentRes, setCurrents, setLayer, isSea, loadSeaMask };
+    return { setProjection, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, lod: () => currentRes, setCurrents, setLayer, isSea, loadSeaMask, setRuler, clearRuler };
   }
 
   WA.map = { createMap, REGIONS, PROJECTIONS };
