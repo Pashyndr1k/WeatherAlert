@@ -264,8 +264,12 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .card { position: relative; padding: 16px 20px; border-right: 1px solid var(--line); border-left: 2px solid transparent; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 /* two-column card (sea-state hazard): value and headline on the left half, mechanism breakdown on the right half */
 .card.wide { grid-column: span 2; }
-.card.wide .c-head, .card.wide .c-val, .card.wide .c-sub { width: calc(50% - 16px); }
-.card.wide .c-detail { position: absolute; top: 16px; bottom: 12px; left: 50%; right: 20px; margin: 0; padding: 0 0 0 16px; border-top: none; border-left: 1px solid var(--line-2); align-content: start; overflow: hidden; }
+.card.wide .c-head, .card.wide .c-val, .card.wide .c-sub { width: calc(38% - 12px); }
+.card.wide .c-sub { white-space: normal; line-height: 1.4; }
+.card.wide .c-detail { position: absolute; top: 16px; bottom: 12px; left: 38%; right: 20px; margin: 0; padding: 0 0 0 16px; border-top: none; border-left: 1px solid var(--line-2); align-content: start; overflow: hidden; letter-spacing: .04em; gap: 4px; }
+.card.wide .c-detail .hz-d { display: grid; grid-template-columns: 1fr auto; align-items: start; }
+.card.wide .c-detail .hz-d span { white-space: normal; overflow: visible; line-height: 1.3; }
+.view-home[data-layout="side"] .card.wide.tall { grid-row: span 2; }
 .card .c-head { font-size: 10px; letter-spacing: .12em; color: var(--text-3); display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; text-transform: uppercase; }
 .card .c-head span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .card .c-badge { font-size: 10px; letter-spacing: .12em; color: var(--text-3); font-family: var(--mono); }

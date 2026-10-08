@@ -343,6 +343,7 @@
         body = `<div class="c-val" data-val>${f.text}<span class="u">${f.unit}</span></div><div class="c-sub${m.id === 'pressure' && v.d_pressureTendency <= -3.5 ? ' warn' : ''}">${sub}</div>`;
       }
       card.innerHTML = head + body;
+      if (m.id === 'd_seaHazard' && card.querySelectorAll('.hz-d').length > 2) card.classList.add('tall'); // breakdown needs two rows in the side layout
       if (editable) card.querySelector('[data-badge]').addEventListener('click', (ev) => { ev.stopPropagation(); openLimitEditor(m.id, card); });
       const valEl = card.querySelector('[data-val]');
       if (valEl) { const key = `${p.id}|${m.id}`, txt = valEl.textContent; if (state.lastShown[key] !== undefined && state.lastShown[key] !== txt) valEl.classList.add('flash'); state.lastShown[key] = txt; }
@@ -409,7 +410,8 @@
         const reason = r.parts.length ? r.parts.slice(0, 2).map((x) => hazardReason(x)).join(' · ') : (ctxFor(p).depth === null ? t('hz_nodepth') : t('hz_none'));
         // breakdown: every mechanism that contributes, strongest first, with the values that drive it
         const detail = r.parts.length ? `<div class="c-detail">${r.parts.map((x) => `<div class="hz-d"><span>${hazardDetail(x)}</span><b>${Math.round(x.score)} %</b></div>`).join('')}</div>` : '';
-        return V(r.score, '%', `${t(`hz_${r.cls}`)} · ${reason}`) + detail;
+        // the headline keeps only the class; the breakdown on the right carries the reasons (no truncation in either language)
+        return V(r.score, '%', r.parts.length ? t(`hz_${r.cls}`) : `${t(`hz_${r.cls}`)} · ${reason}`) + detail;
       }
       case 'd_fetchHs': {
         const r = U.fetchEstimate(fc.hours, viewTime(), ctxFor(p));
