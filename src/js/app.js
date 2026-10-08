@@ -317,7 +317,7 @@
     const order = state.s.display.map((id) => BY_ID[id]).filter(Boolean);
     order.forEach((m) => {
       const card = document.createElement('div');
-      card.className = 'card'; card.dataset.metric = m.id; card.draggable = true;
+      card.className = m.id === 'd_seaHazard' ? 'card wide' : 'card'; card.dataset.metric = m.id; card.draggable = true; // hazard card spans two columns: value left, breakdown right
       attachDrag(card);
       const editable = m.threshold && m.kind !== 'text';
       const head = `<div class="c-head"><span>${mShort(m.id)}</span><button class="c-badge${editable ? ' editable' : ''}" data-badge type="button" title="${editable ? t('lp_click') : ''}"></button></div>`;

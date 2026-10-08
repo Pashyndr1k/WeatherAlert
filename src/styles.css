@@ -261,7 +261,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .mini-btn.danger:hover { border-color: var(--accent); color: var(--accent); }
 .cards { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(196px, 1fr); overflow-x: auto; overflow-y: hidden; min-width: 0; }
 .cards::-webkit-scrollbar { height: 6px; } .cards::-webkit-scrollbar-thumb { background: var(--line-2); }
-.card { position: relative; padding: 16px 20px; border-right: 1px solid var(--line); border-left: 2px solid transparent; min-width: 0; display: flex; flex-direction: column; }
+.card { position: relative; padding: 16px 20px; border-right: 1px solid var(--line); border-left: 2px solid transparent; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+/* two-column card (sea-state hazard): value and headline on the left half, mechanism breakdown on the right half */
+.card.wide { grid-column: span 2; }
+.card.wide .c-head, .card.wide .c-val, .card.wide .c-sub { width: calc(50% - 16px); }
+.card.wide .c-detail { position: absolute; top: 16px; bottom: 12px; left: 50%; right: 20px; margin: 0; padding: 0 0 0 16px; border-top: none; border-left: 1px solid var(--line-2); align-content: start; overflow: hidden; }
 .card .c-head { font-size: 10px; letter-spacing: .12em; color: var(--text-3); display: flex; justify-content: space-between; gap: 8px; white-space: nowrap; text-transform: uppercase; }
 .card .c-head span:first-child { overflow: hidden; text-overflow: ellipsis; }
 .card .c-badge { font-size: 10px; letter-spacing: .12em; color: var(--text-3); font-family: var(--mono); }
