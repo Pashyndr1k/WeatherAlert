@@ -1127,12 +1127,12 @@
       invalidateRouteColors(); map.setRouteColor(routeColorAt); renderPlan();
     }, 600);
   }
-  // Route palette: green while the worst limit is less than half approached, amber towards the limit, red beyond it.
+  // Route palette: green while the worst limit is below 65 % approached, amber towards the limit, red beyond it.
   // (Wider green band than the widget tint, so a calm passage reads as clearly green rather than amber.)
   function routeGrade(r) {
     const ok = [126, 224, 129], warn = [240, 178, 58], crit = [255, 107, 98];
     const mix = (a, b, f) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
-    const c = r <= 0.5 ? ok : r < 0.85 ? mix(ok, warn, (r - 0.5) / 0.35) : r < 1 ? mix(warn, crit, (r - 0.85) / 0.15) : crit;
+    const c = r <= 0.65 ? ok : r < 0.9 ? mix(ok, warn, (r - 0.65) / 0.25) : r < 1 ? mix(warn, crit, (r - 0.9) / 0.1) : crit;
     return `rgb(${c.join(',')})`;
   }
   const routeColorCache = new Map();
