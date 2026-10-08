@@ -23,12 +23,12 @@ function isMarineVar(v) {
 
 // Coordinates are rounded to 0.05° (≈ 4–5 km) before they leave the machine: the models have no finer resolution,
 // and the provider never learns a position more precisely than that.
-const coarse = (x) => (Math.round(x / 0.05) * 0.05).toFixed(2);
+const coarse = (x, step) => { const s = Number(step) || 0.05; if (s < 0.001) return x.toFixed(4); return (Math.round(x / s) * s).toFixed(s < 0.01 ? 3 : 2); };
 
-async function fetchOpenMeteo(points, { httpGetJson, hours = 72 }) {
+async function fetchOpenMeteo(points, { httpGetJson, hours = 72, precision }) {
   if (!points.length) return [];
-  const lat = points.map((p) => coarse(p.lat)).join(',');
-  const lon = points.map((p) => coarse(p.lon)).join(',');
+  const lat = points.map((p) => coarse(p.lat, precision)).join(',');
+  const lon = points.map((p) => coarse(p.lon, precision)).join(',');
   const days = Math.max(2, Math.ceil(hours / 24) + 1);
 
   const atmosUrl = `${OM_FORECAST}?latitude=${lat}&longitude=${lon}&hourly=${OM_ATMOS.join(',') + ',weather_code'}` +
@@ -86,7 +86,7 @@ function pickSource(obj) {
   return first === undefined ? null : Number(first);
 }
 
-async function fetchStormglass(points, { httpGetJson, apiKey, params, hours = 72, source = 'sg' }) {
+async function fetchStormglass(points, { httpGetJson, apiKey, params, hours = 72, source = 'sg', precision }) {
   if (!apiKey) throw new Error('Stormglass API key is not set (Settings → Provider).');
   const want = Array.from(new Set([...(params || []), ...SG_CORE_PARAMS]));
   const start = Math.floor((Date.now() - 4 * 3600e3) / 1000);
@@ -94,7 +94,7 @@ async function fetchStormglass(points, { httpGetJson, apiKey, params, hours = 72
   const out = [];
   let lastMeta = null;
   for (const p of points) {
-    const url = `${SG_POINT}?lat=${coarse(p.lat)}&lng=${coarse(p.lon)}&params=${want.join(',')}&start=${start}&end=${end}` +
+    const url = `${SG_POINT}?lat=${coarse(p.lat, precision)}&lng=${coarse(p.lon, precision)}&params=${want.join(',')}&start=${start}&end=${end}` +
       (source && source !== 'all' ? `&source=${source}` : '');
     const r = await httpGetJson(url, { Authorization: apiKey });
     if (r.status === 402) throw new Error('Stormglass: daily request quota exceeded (HTTP 402). Increase the refresh interval or upgrade the plan.');

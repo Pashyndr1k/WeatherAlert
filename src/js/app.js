@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'coarse', widgetColor: 'value',
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'coarse', widgetColor: 'value', coordPrecision: 0.05,
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -176,7 +176,7 @@
     $('btnRefresh').classList.add('busy');
     try {
       const params = Array.from(new Set([...state.s.display, ...state.s.thresholds.map((x) => x.metric)])).filter((id) => BY_ID[id] && BY_ID[id].sg && !id.startsWith('d_'));
-      const res = await window.bridge.fetchWeather(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params, source: state.s.sgSource, hours: 72 });
+      const res = await window.bridge.fetchWeather(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params, source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
       res.forEach((fc) => { state.forecasts[fc.pointId] = fc; if (fc.meta && fc.meta.quota) state.quota = { used: fc.meta.used, quota: fc.meta.quota }; });
       state.lastRefresh = Date.now();
       if (reason === 'manual') toast(t('updated'), 'ok');
@@ -546,6 +546,36 @@
       lastTop = top;
     });
     tick(H); mk(H, 'tm end', fmtClock(now + lead)); mk(H, 'ev end', t('lead_end'));
+    renderHazardStrip();
+  }
+  // 24 hourly cells per point coloured by the sea-state hazard index; a red frame marks hours with any limit exceeded
+  function renderHazardStrip() {
+    const rows = $('hzRows'); rows.innerHTML = '';
+    const t0 = Math.floor(Date.now() / 3600e3) * 3600e3;
+    $('hzTicks').innerHTML = [0, 6, 12, 18, 24].map((h) => `<span>${fmtClock(t0 + h * 3600e3)}</span>`).join('');
+    const withFc = state.s.points.filter((p) => state.forecasts[p.id]);
+    if (!withFc.length) { rows.innerHTML = `<div class="hz-empty">${t('hz_strip_none')}</div>`; return; }
+    withFc.forEach((p) => {
+      const fc = state.forecasts[p.id], ctx = ctxFor(p);
+      let max = 0, cells = '';
+      for (let h = 0; h < 24; h++) {
+        const tm = t0 + h * 3600e3 + 1800e3; // middle of the hour
+        const hz = U.seaHazard(fc.hours, tm, ctx);
+        const over = forecastLevel(p, tm) === 'critical';
+        if (!hz) { cells += `<div class="hz-cell na" title="${fmtClock(tm)} · —"></div>`; continue; }
+        max = Math.max(max, hz.score);
+        const [r, g, b] = gradeColor(hz.score / 100);
+        const alpha = (0.12 + 0.7 * hz.score / 100).toFixed(2);
+        const reason = hz.parts.length ? hz.parts.slice(0, 2).map(hazardReason).join(' · ') : t(`hz_${hz.cls}`);
+        cells += `<div class="hz-cell${over ? ' x' : ''}" style="--c: rgba(${r},${g},${b},${alpha})" title="${fmtClock(tm)} · ${hz.score} % · ${reason}${over ? ' · ' + forecastCritText(p, tm) : ''}"></div>`;
+      }
+      const row = document.createElement('div');
+      row.className = 'hz-row';
+      row.innerHTML = `<span class="nm"></span><div class="hz-cells">${cells}</div><span class="mx">${t('hz_max')} ${max}</span>`;
+      row.querySelector('.nm').textContent = p.name;
+      row.addEventListener('click', () => { select(p.id); setView('home'); });
+      rows.appendChild(row);
+    });
   }
 
   // ------------------------------------------------------------------ points
@@ -750,7 +780,7 @@
   function openSettings() {
     const s = state.s;
     state.settingsDraft = JSON.parse(JSON.stringify({ thresholds: s.thresholds }));
-    $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource;
+    $('setProvider').value = s.provider; $('setRefresh').value = String(s.refreshMin); $('setSgSource').value = s.sgSource; $('setCoordPrec').value = String(s.coordPrecision || 0.05);
     $('setProjection').value = s.projection; $('setLang').value = s.lang;
     renderTzOptions(); $('setTz').value = String(s.tz); $('setLayout').value = s.layout || 'side'; $('setWidgetColor').value = s.widgetColor || 'off';
     $('setCurrentsDensity').value = s.currentsDensity || 'coarse'; renderDensityHint();
@@ -853,6 +883,7 @@
     const s = state.s;
     const prevProj = s.projection, prevProvider = s.provider, prevUnits = JSON.stringify(s.units);
     s.provider = $('setProvider').value; s.refreshMin = Number($('setRefresh').value); s.sgSource = $('setSgSource').value;
+    const prevPrec = s.coordPrecision; s.coordPrecision = Number($('setCoordPrec').value) || 0.05;
     s.projection = $('setProjection').value; s.lang = $('setLang').value;
     s.tz = $('setTz').value === 'local' ? 'local' : Number($('setTz').value);
     s.leadMin = Number($('setLead').value); s.volume = Number($('setVolume').value);
@@ -872,10 +903,10 @@
     if (prevDensity !== s.currentsDensity && s.layers.currents) refreshCurrents(true);
     state.settingsDraft = null;
     save(); schedule(); setView('home');
-    if (prevProvider !== s.provider || key) { state.forecasts = {}; state.quota = null; }
+    if (prevProvider !== s.provider || key || prevPrec !== s.coordPrecision) { state.forecasts = {}; state.quota = null; state.plan.key = null; }
     if (prevUnits !== JSON.stringify(s.units)) state.lastShown = {};
     evaluateAlarms(); renderAll();
-    if (prevProvider !== s.provider || key || !state.lastRefresh) refresh('auto');
+    if (prevProvider !== s.provider || key || prevPrec !== s.coordPrecision || !state.lastRefresh) refresh('auto');
     toast(t('settings_applied'), 'ok');
   });
 
@@ -985,8 +1016,14 @@
   // ------------------------------------------------------------------ route planner (bottom-right button)
   function onRoute(sum) { if (sum.mode === 'plan') { state.plan.sum = sum; renderPlan(); ensureShipForecast(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } else renderRuler(sum); }
   // datetime-local <-> ms in the app's time zone
-  function toLocalInput(ms) { const d = shifted(ms); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; }
-  function fromLocalInput(s) { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || ''); if (!m) return null; return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - tzOffset() * 60e3; }
+  // departure field: DD.MM.YY HH:MM in the app's time zone (24 h clock; separators . / - : all accepted on input)
+  function toLocalInput(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${pad2(d.getUTCFullYear() % 100)} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; }
+  function fromLocalInput(s) {
+    const m = /^\s*(\d{1,2})[./:-](\d{1,2})[./:-](\d{2}|\d{4})[\sT,]+(\d{1,2})[:.h](\d{2})\s*$/.exec(s || ''); if (!m) return null;
+    const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]), mo = Number(m[2]) - 1, d = Number(m[1]), hh = Number(m[4]), mi = Number(m[5]);
+    if (mo < 0 || mo > 11 || d < 1 || d > 31 || hh > 23 || mi > 59) return null;
+    return Date.UTC(y, mo, d, hh, mi) - tzOffset() * 60e3;
+  }
   function setPlanMode(on) {
     if (on && state.ruler.on) setRulerMode(false);
     state.plan.on = on; $('btnPlan').classList.toggle('on', on);
@@ -1013,12 +1050,12 @@
     $('planShip').innerHTML = rows.join('');
     $('planHint').textContent = sum && sum.done ? t('plan_hint_done') : t('plan_hint');
   }
-  function fmtDay(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}`; }
+  function fmtDay(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${pad2(d.getUTCFullYear() % 100)}`; }
   // forecast for the ship's position: fetched when the position moves to another ~5 km cell, cached per cell
   let shipFetchT = null;
   function ensureShipForecast() {
     const sp = planShipPoint(); if (!sp) return;
-    const key = `${Math.round(sp.lat / 0.05)}|${Math.round(sp.lon / 0.05)}`;
+    const prec = Math.max(0.01, Number(state.s.coordPrecision) || 0.05); const key = `${Math.round(sp.lat / prec)}|${Math.round(sp.lon / prec)}`;
     if (key === state.plan.key) return;
     clearTimeout(shipFetchT);
     shipFetchT = setTimeout(async () => {
@@ -1026,14 +1063,19 @@
       state.plan.key = key; state.plan.fetching = true; renderSelected();
       try {
         const params = Array.from(new Set([...state.s.display, ...state.s.thresholds.map((x) => x.metric)])).filter((id) => BY_ID[id] && BY_ID[id].sg && !id.startsWith('d_'));
-        const res = await window.bridge.fetchWeather([{ id: 'ship', lat: sp.lat, lon: sp.lon }], { provider: state.s.provider, params, source: state.s.sgSource, hours: 72 });
+        const res = await window.bridge.fetchWeather([{ id: 'ship', lat: sp.lat, lon: sp.lon }], { provider: state.s.provider, params, source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
         if (state.plan.key === key) state.plan.fc = res[0] || null;
       } catch (e) { toast(String(e.message || e), 'err'); state.plan.key = null; }
       finally { state.plan.fetching = false; renderSelected(); renderMapStates(); renderPoints(); }
     }, 350);
   }
   $('btnPlan').addEventListener('click', () => setPlanMode(!state.plan.on));
-  $('planDepart').addEventListener('change', () => { const ms = fromLocalInput($('planDepart').value); if (ms !== null) { state.plan.depart = ms; renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } });
+  $('planDepart').addEventListener('change', () => {
+    const el = $('planDepart'); const ms = fromLocalInput(el.value);
+    if (ms === null) { el.classList.add('invalid'); toast(t('plan_depart_bad'), 'err'); return; }
+    el.classList.remove('invalid'); state.plan.depart = ms; el.value = toLocalInput(ms);
+    renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints();
+  });
   $('planSpeed').addEventListener('input', () => { const v = Number($('planSpeed').value); if (v > 0) { state.plan.speedKn = v; renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } });
 
   // ------------------------------------------------------------------ 24 h forecast time bar (bottom-left)

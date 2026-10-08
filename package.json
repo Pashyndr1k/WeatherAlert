@@ -1,7 +1,7 @@
 {
   "name": "weatheralert",
   "productName": "WeatherAlert",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "description": "Maritime weather tracking and threshold alarms for ship captains (Black Sea & Sea of Azov)",
   "main": "main.js",
   "private": true,

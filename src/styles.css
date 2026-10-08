@@ -366,6 +366,21 @@ select option { background: var(--bg); color: var(--text); }
 .al .lbl-btn { padding: 6px 10px; font-size: 10px; }
 .al-empty { padding: 40px 0; font-size: 11px; letter-spacing: .14em; color: var(--text-4); text-transform: uppercase; }
 .alarms-right { display: flex; flex-direction: column; gap: 28px; }
+/* ---------- 24 h sea-state hazard strip (alarms view) ---------- */
+.hz-strip { margin-top: 32px; }
+.hz-head { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; font-size: 10px; letter-spacing: .14em; color: var(--text-4); text-transform: uppercase; border-bottom: 1px solid var(--line-2); }
+.hz-row, .hz-axis { display: grid; grid-template-columns: 150px 1fr 56px; gap: 14px; align-items: center; }
+.hz-row { padding: 7px 0; border-bottom: 1px solid var(--line-2); cursor: pointer; }
+.hz-row:hover .nm { color: var(--text); }
+.hz-row .nm { font-size: 11px; letter-spacing: .1em; color: var(--text-2); text-transform: uppercase; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hz-cells { display: grid; grid-template-columns: repeat(24, 1fr); gap: 2px; height: 18px; }
+.hz-cell { background: var(--c, rgba(255, 255, 255, .05)); }
+.hz-cell.x { outline: 1px solid var(--accent); outline-offset: -1px; }
+.hz-cell.na { background: repeating-linear-gradient(135deg, rgba(255,255,255,.04) 0 2px, transparent 2px 5px); }
+.hz-row .mx { font-size: 11px; text-align: right; color: var(--text-3); letter-spacing: .06em; }
+.hz-axis .ticks { display: flex; justify-content: space-between; font-size: 9px; color: var(--text-4); letter-spacing: .1em; padding-top: 5px; }
+.hz-empty { padding: 14px 0; font-size: 10px; color: var(--text-4); letter-spacing: .12em; text-transform: uppercase; }
+.plan-panel .pl input.invalid { border-color: var(--accent); }
 .tl-head { font-size: 10px; letter-spacing: .14em; color: var(--text-4); padding-bottom: 12px; border-bottom: 1px solid var(--line-2); white-space: nowrap; text-transform: uppercase; }
 .tl-axis { position: relative; height: 320px; border-left: 1px solid var(--line-2); margin-left: 60px; }
 .tl-axis .tick { position: absolute; left: -1px; width: 12px; height: 1px; background: var(--text-3); }
