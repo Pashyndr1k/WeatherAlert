@@ -437,8 +437,8 @@
 
   // Ratio 0..1+ of how close a value is to its limit (1 = at the limit, >1 = exceeded); null when no limit or value.
   // Metrics whose natural floor is not zero are graded over a realistic span instead of a ratio to the limit:
-  // pressure and temperatures: the tint starts 10 units before the limit (user request: react within ±10 hPa of the threshold).
-  const GRADE_SPAN = { pressure: { span: 10 }, airTemperature: { span: 10 }, waterTemperature: { span: 10 }, dewPointTemperature: { span: 10 }, surfaceTemperature: { span: 10 } };
+  // pressure: the tint starts 15 hPa before the limit; temperatures: 7 °C before the limit (user request).
+  const GRADE_SPAN = { pressure: { span: 15 }, airTemperature: { span: 7 }, waterTemperature: { span: 7 }, dewPointTemperature: { span: 7 }, surfaceTemperature: { span: 7 } };
   function limitRatio(metricId, value, th) {
     if (!th || value === null || value === undefined || Number.isNaN(value)) return null;
     const g = GRADE_SPAN[metricId];
