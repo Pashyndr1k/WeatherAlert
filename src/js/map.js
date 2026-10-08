@@ -370,7 +370,7 @@
         acc += l.km;
       });
       gRuler.selectAll('path.rseg').data(pieces).join('path').attr('class', 'rseg').attr('d', (s) => line(s.a, s.b)).attr('stroke-width', 2.8 / k)
-        .attr('stroke', (s) => (route.done && route.colorAt ? route.colorAt(s.km) : null) || null);
+        .style('stroke', (s) => (route.done && route.colorAt ? route.colorAt(s.km) : null) || null); // inline style: the stylesheet's amber stroke would override a presentation attribute
       const live = on && !route.done && route.cursor && route.pts.length ? [{ a: route.pts[route.pts.length - 1], b: route.cursor }] : [];
       gRuler.selectAll('path.rlive').data(live).join('path').attr('class', 'rlive').attr('d', (s) => line(s.a, s.b)).attr('stroke-width', 1.4 / k).attr('stroke-dasharray', `${2 / k} ${3 / k}`);
       // waypoints: numbered, draggable once the route is laid, last one extends, right-click deletes
