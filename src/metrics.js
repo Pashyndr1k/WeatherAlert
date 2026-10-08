@@ -97,8 +97,8 @@
     { id: 'd_gustFactor', label: 'Gust factor', group: 'Derived (maritime)', kind: 'ratio', def: false, threshold: true, icon: 'gust', needs: ['windSpeed', 'gust'] },
     { id: 'd_icing', label: 'Icing index (Overland)', group: 'Derived (maritime)', kind: 'icing', def: true, threshold: true, icon: 'ice', needs: ['airTemperature', 'waterTemperature', 'windSpeed'] },
     { id: 'd_advFog', label: 'Advection-fog probability', group: 'Derived (maritime)', kind: 'pct', def: true, threshold: true, icon: 'fog', needs: ['waterTemperature', 'dewPointTemperature', 'windSpeed', 'humidity'] },
-    { id: 'd_steepness', label: 'Wave steepness (Hs/L)', group: 'Derived (maritime)', kind: 'steep', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod'] },
-    { id: 'd_seaHazard', label: 'Sea-state hazard index', group: 'Derived (maritime)', kind: 'pct', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod', 'windSpeed', 'windDirection', 'currentSpeed', 'currentDirection', 'swellHeight', 'swellDirection', 'windWaveHeight', 'windWaveDirection'] },
+    { id: 'd_steepness', label: 'Wave steepness (Hs/L)', group: 'Derived (maritime)', kind: 'steep', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod', 'windWaveHeight', 'windWavePeriod', 'swellHeight', 'swellPeriod'] },
+    { id: 'd_seaHazard', label: 'Sea-state hazard index', group: 'Derived (maritime)', kind: 'pct', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod', 'windSpeed', 'windDirection', 'currentSpeed', 'currentDirection', 'swellHeight', 'swellDirection', 'swellPeriod', 'windWaveHeight', 'windWaveDirection', 'windWavePeriod'] },
     { id: 'd_waveEnergy', label: 'Wave energy (per m²)', group: 'Derived (maritime)', kind: 'energy', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod'] },
     { id: 'd_fetchHs', label: 'Fetch-growth wave estimate', group: 'Derived (maritime)', kind: 'length', def: false, threshold: true, icon: 'wave', needs: ['windSpeed', 'windDirection', 'waveHeight'] }
   ];

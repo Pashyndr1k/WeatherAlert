@@ -401,7 +401,7 @@
       case 'd_steepness': {
         const r = U.steepness(v);
         if (!r) return V('—');
-        return V((r.s * 100).toFixed(1), '%', `1:${r.ratio} · ${t(`steep_${r.cls}`)} · L ${Math.round(r.L)} m`);
+        return V((r.s * 100).toFixed(1), '%', `1:${r.ratio} · ${t(`steep_${r.cls}`)} · ${t(`steep_src_${r.src}`)} ${r.hs.toFixed(1)} m · TM ${r.T.toFixed(1)} s · L ${Math.round(r.L)} m`);
       }
       case 'd_seaHazard': {
         const r = U.seaHazard(fc.hours, viewTime(), ctxFor(p));
@@ -427,7 +427,7 @@
   // one short reason for a hazard component, e.g. "STEEP 1:19", "WIND vs CURRENT 160°", "SHOALING 14 M"
   function hazardReason(x) {
     const i = x.info || {};
-    if (x.id === 'steep') return `${t('hz_steep')} 1:${i.ratio}`;
+    if (x.id === 'steep') return `${t('hz_steep')} 1:${i.ratio} · ${t(`steep_src_${i.src}`)}`;
     if (x.id === 'opposing') return `${t('hz_opposing')} ${Math.round(i.angle)}°`;
     if (x.id === 'cross') return `${t('hz_cross')} ${Math.round(i.angle)}°`;
     if (x.id === 'shoal') { const d = fmtMetric('waveHeight', i.depth); return `${t('hz_shoal')} ${d.text} ${d.unit}`; }

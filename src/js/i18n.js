@@ -80,6 +80,7 @@
     // derived words
     bft: 'BFT', from: 'FROM', factor: 'FACTOR', water: 'WATER', tp: 'TP', douglas: 'DOUGLAS', okta: 'OKTA', spread: 'SPREAD', rh: 'RH', angle: 'ANGLE',
     hz_low: 'LOW', hz_moderate: 'MODERATE', hz_high: 'HIGH', hz_severe: 'SEVERE', hz_steep: 'STEEP', hz_opposing: 'WIND vs CURRENT', hz_cross: 'CROSS SEA', hz_shoal: 'SHOALING', hz_fetch: 'FETCH GROWTH', hz_none: 'NO MECHANISM ACTIVE', hz_nodepth: 'DEPTH N/A',
+    steep_src_wind: 'WIND SEA', steep_src_swell: 'SWELL', steep_src_total: 'TOTAL SEA',
     steep_gentle: 'GENTLE', steep_moderate: 'MODERATE', steep_steep: 'STEEP', steep_breaking: 'BREAKING CRESTS', fetch_sum: '{h} H × {km} KM · {u} KN', fetch_none: 'NO STEADY WIND', depth: 'DEPTH',
     icing_none: 'NONE', icing_light: 'LIGHT', icing_moderate: 'MODERATE', icing_heavy: 'HEAVY', icing_extreme: 'EXTREME', icing_zone: '≥55°N ZONE', icing_south: 'ADVISORY <55°N',
     fog_low: 'LOW', fog_moderate: 'MODERATE', fog_high: 'HIGH', fog_very_high: 'VERY HIGH', td_sst: 'TD−SST',
@@ -159,6 +160,7 @@
     eta_hm: '{h} год {m} хв', eta_m: '{m} хв', in_: 'через {t}', at_: 'о {t}', reaching: 'досягне', max24: 'МАКС 24Г', min24: 'МІН 24Г',
     bft: 'БАЛ', from: 'З', factor: 'КОЕФ', water: 'ВОДА', tp: 'TP', douglas: 'ДУГЛАС', okta: 'ОКТА', spread: 'ДЕФІЦИТ', rh: 'ВОЛ', angle: 'КУТ',
     hz_low: 'НИЗЬКИЙ', hz_moderate: 'ПОМІРНИЙ', hz_high: 'ВИСОКИЙ', hz_severe: 'НЕБЕЗПЕЧНИЙ', hz_steep: 'КРУТА ХВИЛЯ', hz_opposing: 'ВІТЕР ПРОТИ ТЕЧІЇ', hz_cross: 'ПЕРЕХРЕСНЕ ХВИЛЮВАННЯ', hz_shoal: 'МІЛКОВОДДЯ', hz_fetch: 'РОЗГІН ХВИЛІ', hz_none: 'МЕХАНІЗМІВ НЕМАЄ', hz_nodepth: 'ГЛИБИНА Н/Д',
+    steep_src_wind: 'ВІТРОВІ ХВИЛІ', steep_src_swell: 'ЗИБ', steep_src_total: 'СУМАРНЕ МОРЕ',
     steep_gentle: 'ПОЛОГА', steep_moderate: 'ПОМІРНА', steep_steep: 'КРУТА', steep_breaking: 'ГРЕБЕНІ РУЙНУЮТЬСЯ', fetch_sum: '{h} ГОД × {km} КМ · {u} ВУЗ', fetch_none: 'НЕМАЄ СТАЛОГО ВІТРУ', depth: 'ГЛИБИНА',
     icing_none: 'НЕМАЄ', icing_light: 'СЛАБКЕ', icing_moderate: 'ПОМІРНЕ', icing_heavy: 'СИЛЬНЕ', icing_extreme: 'ЕКСТРЕМАЛЬНЕ', icing_zone: 'ЗОНА ≥55°N', icing_south: 'ДОВІДКОВО <55°N',
     fog_low: 'НИЗЬКА', fog_moderate: 'ПОМІРНА', fog_high: 'ВИСОКА', fog_very_high: 'ДУЖЕ ВИСОКА', td_sst: 'TD−SST',

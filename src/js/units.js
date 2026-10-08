@@ -179,11 +179,19 @@
   // ---------- sea-state hazard ----------
   const G = 9.80665;
   // Deep-water wavelength L = gT²/2π and steepness Hs/L. Classes: < 1:40 gentle, 1:40–1:25 moderate, 1:25–1:18 steep, > 1:18 breaking crests.
+  // Steepness is taken from the dominant wave system (wind sea or swell, whichever is higher) with its own mean period;
+  // the combined Hs with the mean period of a mixed sea is biased towards short periods and overstates steepness.
+  // Falls back to the total sea when the components are not available. Periods from both providers are mean periods (TM).
   function steepness(v) {
-    const hs = v && v.waveHeight, tp = v && v.wavePeriod;
-    if (hs === null || hs === undefined || tp === null || tp === undefined || !(tp > 0) || !(hs > 0)) return null;
-    const L = G * tp * tp / (2 * Math.PI), s = hs / L;
-    return { s, L, ratio: Math.round(1 / s), cls: s < 0.025 ? 'gentle' : s < 0.04 ? 'moderate' : s < 0.055 ? 'steep' : 'breaking' };
+    if (!v) return null;
+    const ok = (h, T) => h !== null && h !== undefined && T !== null && T !== undefined && h > 0 && T > 0;
+    const cands = [];
+    if (ok(v.windWaveHeight, v.windWavePeriod)) cands.push({ hs: v.windWaveHeight, T: v.windWavePeriod, src: 'wind' });
+    if (ok(v.swellHeight, v.swellPeriod)) cands.push({ hs: v.swellHeight, T: v.swellPeriod, src: 'swell' });
+    let c = cands.sort((a, b) => b.hs - a.hs)[0];
+    if (!c) { if (!ok(v.waveHeight, v.wavePeriod)) return null; c = { hs: v.waveHeight, T: v.wavePeriod, src: 'total' }; }
+    const L = G * c.T * c.T / (2 * Math.PI), s = c.hs / L;
+    return { s, L, ratio: Math.round(1 / s), cls: s < 0.025 ? 'gentle' : s < 0.04 ? 'moderate' : s < 0.055 ? 'steep' : 'breaking', hs: c.hs, T: c.T, src: c.src, periodType: 'tm' };
   }
   // JONSWAP fetch-limited growth with the CEM duration limit and the Pierson–Moskowitz fully-developed cap.
   // U m/s, fetch m, duration s → { hs (m), durLimited, fullyDeveloped }
@@ -222,13 +230,14 @@
   function seaHazard(hours, t, ctx) {
     const at = (m) => WA.alarms.valueAt(hours, m, t);
     const v = {};
-    ['waveHeight', 'wavePeriod', 'windSpeed', 'windDirection', 'currentSpeed', 'currentDirection', 'swellHeight', 'swellDirection', 'windWaveHeight', 'windWaveDirection'].forEach((m) => { v[m] = at(m); });
+    ['waveHeight', 'wavePeriod', 'windSpeed', 'windDirection', 'currentSpeed', 'currentDirection', 'swellHeight', 'swellDirection', 'swellPeriod', 'windWaveHeight', 'windWaveDirection', 'windWavePeriod'].forEach((m) => { v[m] = at(m); });
     const has = (m) => v[m] !== null && v[m] !== undefined;
     if (!has('waveHeight') && !has('windSpeed')) return null;
     const c01 = (x) => Math.max(0, Math.min(1, x));
     const parts = [];
     const st = steepness(v);
-    if (st) parts.push({ id: 'steep', score: 100 * c01((st.s - 0.025) / 0.03), info: st });
+    // steep chop only matters once the waves have size: full weight from Hs 1.5 m, nothing below 0.5 m
+    if (st) parts.push({ id: 'steep', score: 100 * c01((st.s - 0.025) / 0.03) * c01((st.hs - 0.5) / 1.0), info: st });
     if (has('currentSpeed') && has('currentDirection') && has('windDirection') && has('windSpeed')) {
       const windTo = (v.windDirection + 180) % 360; let ang = Math.abs(windTo - v.currentDirection) % 360; if (ang > 180) ang = 360 - ang;
       if (ang >= 120) parts.push({ id: 'opposing', score: 100 * c01((ang - 120) / 60) * c01((v.currentSpeed - 0.2) / 0.6) * c01((v.windSpeed - 8) / 10), info: { angle: ang, cur: v.currentSpeed } });
@@ -259,7 +268,7 @@
     if (id === 'd_gustFactor') return v && v.windSpeed && v.gust ? v.gust / Math.max(0.5, v.windSpeed) : null;
     return null;
   }
-  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'], d_steepness: ['waveHeight', 'wavePeriod'], d_waveEnergy: ['waveHeight', 'wavePeriod'] };
+  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'], d_steepness: ['waveHeight', 'wavePeriod', 'windWaveHeight', 'windWavePeriod', 'swellHeight', 'swellPeriod'], d_waveEnergy: ['waveHeight', 'wavePeriod'] };
 
   // ---------- coordinate parsing (WGS84 decimal, DDM or DMS) ----------
   function parseCoordPart(str, isLat) {
