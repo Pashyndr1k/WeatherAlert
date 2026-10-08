@@ -3,6 +3,7 @@ dist/
 tools/gshhg/*.zip
 assets/blacksea/*.geojson
 assets/blacksea/summary.json
+tools/depth/*.json
 docs/report.html
 *.log
 .DS_Store

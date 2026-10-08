@@ -76,6 +76,8 @@
     eta_hm: '{h} h {m} min', eta_m: '{m} min', in_: 'in {t}', at_: 'at {t}', reaching: 'reaching', max24: 'MAX 24H', min24: 'MIN 24H',
     // derived words
     bft: 'BFT', from: 'FROM', factor: 'FACTOR', water: 'WATER', tp: 'TP', douglas: 'DOUGLAS', okta: 'OKTA', spread: 'SPREAD', rh: 'RH', angle: 'ANGLE',
+    hz_low: 'LOW', hz_moderate: 'MODERATE', hz_high: 'HIGH', hz_severe: 'SEVERE', hz_steep: 'STEEP', hz_opposing: 'WIND vs CURRENT', hz_cross: 'CROSS SEA', hz_shoal: 'SHOALING', hz_fetch: 'FETCH GROWTH', hz_none: 'NO MECHANISM ACTIVE', hz_nodepth: 'DEPTH N/A',
+    steep_gentle: 'GENTLE', steep_moderate: 'MODERATE', steep_steep: 'STEEP', steep_breaking: 'BREAKING CRESTS', fetch_sum: '{h} H × {km} KM · {u} KN', fetch_none: 'NO STEADY WIND', depth: 'DEPTH',
     icing_none: 'NONE', icing_light: 'LIGHT', icing_moderate: 'MODERATE', icing_heavy: 'HEAVY', icing_extreme: 'EXTREME', icing_zone: '≥55°N ZONE', icing_south: 'ADVISORY <55°N',
     fog_low: 'LOW', fog_moderate: 'MODERATE', fog_high: 'HIGH', fog_very_high: 'VERY HIGH', td_sst: 'TD−SST',
     ptend_words: { fvr: 'FALLING VERY RAPIDLY', fr: 'FALLING RAPIDLY', f: 'FALLING', rr: 'RISING RAPIDLY', r: 'RISING', s: 'STEADY' },
@@ -150,6 +152,8 @@
     updated: 'Прогноз оновлено', muted_on: 'Звук вимкнено', muted_off: 'Звук увімкнено', map_fail: 'Не вдалося завантажити дані карти: ',
     eta_hm: '{h} год {m} хв', eta_m: '{m} хв', in_: 'через {t}', at_: 'о {t}', reaching: 'досягне', max24: 'МАКС 24Г', min24: 'МІН 24Г',
     bft: 'БАЛ', from: 'З', factor: 'КОЕФ', water: 'ВОДА', tp: 'TP', douglas: 'ДУГЛАС', okta: 'ОКТА', spread: 'ДЕФІЦИТ', rh: 'ВОЛ', angle: 'КУТ',
+    hz_low: 'НИЗЬКИЙ', hz_moderate: 'ПОМІРНИЙ', hz_high: 'ВИСОКИЙ', hz_severe: 'НЕБЕЗПЕЧНИЙ', hz_steep: 'КРУТА ХВИЛЯ', hz_opposing: 'ВІТЕР ПРОТИ ТЕЧІЇ', hz_cross: 'ПЕРЕХРЕСНЕ ХВИЛЮВАННЯ', hz_shoal: 'МІЛКОВОДДЯ', hz_fetch: 'РОЗГІН ХВИЛІ', hz_none: 'МЕХАНІЗМІВ НЕМАЄ', hz_nodepth: 'ГЛИБИНА Н/Д',
+    steep_gentle: 'ПОЛОГА', steep_moderate: 'ПОМІРНА', steep_steep: 'КРУТА', steep_breaking: 'ГРЕБЕНІ РУЙНУЮТЬСЯ', fetch_sum: '{h} ГОД × {km} КМ · {u} ВУЗ', fetch_none: 'НЕМАЄ СТАЛОГО ВІТРУ', depth: 'ГЛИБИНА',
     icing_none: 'НЕМАЄ', icing_light: 'СЛАБКЕ', icing_moderate: 'ПОМІРНЕ', icing_heavy: 'СИЛЬНЕ', icing_extreme: 'ЕКСТРЕМАЛЬНЕ', icing_zone: 'ЗОНА ≥55°N', icing_south: 'ДОВІДКОВО <55°N',
     fog_low: 'НИЗЬКА', fog_moderate: 'ПОМІРНА', fog_high: 'ВИСОКА', fog_very_high: 'ДУЖЕ ВИСОКА', td_sst: 'TD−SST',
     ptend_words: { fvr: 'ДУЖЕ ШВИДКО ПАДАЄ', fr: 'ШВИДКО ПАДАЄ', f: 'ПАДАЄ', rr: 'ШВИДКО ЗРОСТАЄ', r: 'ЗРОСТАЄ', s: 'СТАБІЛЬНИЙ' },
@@ -164,11 +168,11 @@
       pressure: 'Тиск (MSL)', airTemperature: 'Температура повітря', dewPointTemperature: 'Точка роси', humidity: 'Відносна вологість', cloudCover: 'Хмарність', visibility: 'Видимість',
       precipitation: 'Опади', rain: 'Дощ', snow: 'Сніг', graupel: 'Крупа', snowDepth: 'Висота снігу', snowAlbedo: 'Альбедо снігу',
       waterTemperature: 'Температура води', surfaceTemperature: 'Температура поверхні', currentSpeed: 'Швидкість течії', currentDirection: 'Напрямок течії (куди)', seaLevel: 'Рівень моря (відн. MSL)', iceCover: 'Льодовий покрив', seaIceThickness: 'Товщина льоду',
-      d_beaufort: 'Сила вітру (Бофорт)', d_seaState: 'Стан моря (Дуглас)', d_cloudCondition: 'Стан неба', d_airCondition: 'Стан атмосфери', d_pressureTendency: 'Тенденція тиску (3 год)', d_crossSea: 'Перехресне хвилювання', d_fogRisk: 'Ризик туману', d_gustFactor: 'Коефіцієнт поривів', d_icing: 'Індекс обледеніння (Overland)', d_advFog: 'Імовірність адвективного туману'
+      d_beaufort: 'Сила вітру (Бофорт)', d_seaState: 'Стан моря (Дуглас)', d_cloudCondition: 'Стан неба', d_airCondition: 'Стан атмосфери', d_pressureTendency: 'Тенденція тиску (3 год)', d_crossSea: 'Перехресне хвилювання', d_fogRisk: 'Ризик туману', d_gustFactor: 'Коефіцієнт поривів', d_steepness: 'Крутість хвилі (Hs/L)', d_seaHazard: 'Індекс небезпеки хвилювання', d_fetchHs: 'Оцінка хвилі за розгоном', d_icing: 'Індекс обледеніння (Overland)', d_advFog: 'Імовірність адвективного туману'
     },
     short: { windSpeed: 'ВІТЕР 10М', gust: 'ПОРИВИ', windDirection: 'НАПР ВІТРУ', waveHeight: 'ХВИЛЯ HS', wavePeriod: 'ПЕРІОД TP', waveDirection: 'НАПР ХВИЛІ', swellHeight: 'ЗИБ', swellPeriod: 'ПЕРІОД ЗИБУ', swellDirection: 'НАПР ЗИБУ', windWaveHeight: 'ВІТР ХВИЛЯ',
       pressure: 'ТИСК', airTemperature: 'ПОВІТРЯ', waterTemperature: 'ВОДА', dewPointTemperature: 'ТОЧКА РОСИ', humidity: 'ВОЛОГІСТЬ', cloudCover: 'ХМАРНІСТЬ', visibility: 'ВИДИМІСТЬ', precipitation: 'ОПАДИ', currentSpeed: 'ТЕЧІЯ', currentDirection: 'НАПР ТЕЧІЇ',
-      d_beaufort: 'БОФОРТ', d_seaState: 'СТАН МОРЯ', d_cloudCondition: 'НЕБО', d_airCondition: 'АТМОСФЕРА', d_pressureTendency: 'ТЕНД ТИСКУ', d_crossSea: 'ПЕРЕХР ХВИЛІ', d_fogRisk: 'РИЗИК ТУМАНУ', d_gustFactor: 'КОЕФ ПОРИВІВ', d_icing: 'ОБЛЕДЕНІННЯ', d_advFog: 'АДВ ТУМАН' },
+      d_beaufort: 'БОФОРТ', d_seaState: 'СТАН МОРЯ', d_cloudCondition: 'НЕБО', d_airCondition: 'АТМОСФЕРА', d_pressureTendency: 'ТЕНД ТИСКУ', d_crossSea: 'ПЕРЕХР ХВИЛІ', d_fogRisk: 'РИЗИК ТУМАНУ', d_gustFactor: 'КОЕФ ПОРИВІВ', d_icing: 'ОБЛЕДЕНІННЯ', d_advFog: 'АДВ ТУМАН', d_steepness: 'КРУТІСТЬ', d_seaHazard: 'НЕБЕЗПЕКА МОРЯ', d_fetchHs: 'HS РОЗГОНУ' },
     air: { 'Fog': 'ТУМАН', 'Rime fog': 'ПАМОРОЗЬ', 'Thick mist': 'ГУСТА ІМЛА', 'Mist': 'ІМЛА', 'Haze': 'СЕРПАНОК', 'Heavy snow': 'СИЛЬНИЙ СНІГ', 'Snow': 'СНІГ', 'Heavy rain': 'СИЛЬНИЙ ДОЩ', 'Rain': 'ДОЩ', 'Light rain': 'СЛАБКИЙ ДОЩ', 'Good visibility': 'ДОБРА ВИДИМІСТЬ',
       'Clear': 'ЯСНО', 'Mainly clear': 'ПЕРЕВАЖНО ЯСНО', 'Partly cloudy': 'МІНЛИВА ХМАРНІСТЬ', 'Overcast': 'ПОХМУРО', 'Light drizzle': 'СЛАБКА МРЯКА', 'Drizzle': 'МРЯКА', 'Dense drizzle': 'ГУСТА МРЯКА', 'Freezing drizzle': 'ПЕРЕОХОЛОДЖЕНА МРЯКА', 'Freezing rain': 'КРИЖАНИЙ ДОЩ',
       'Light snow': 'СЛАБКИЙ СНІГ', 'Snow grains': 'СНІЖНА КРУПА', 'Rain showers': 'ЗЛИВИ', 'Violent showers': 'СИЛЬНІ ЗЛИВИ', 'Snow showers': 'СНІГОПАД', 'Thunderstorm': 'ГРОЗА', 'Thunderstorm, hail': 'ГРОЗА З ГРАДОМ' },

@@ -125,6 +125,7 @@ ipcMain.handle('apikey:has', () => Boolean(loadApiKey()));
 
 // Map data: GSHHG Black Sea tiles by resolution (c/l/i/h/f).
 ipcMain.handle('map:load', (_e, dataset, res) => {
+  if (dataset === 'bathy') return JSON.parse(fs.readFileSync(path.join(__dirname, 'assets', 'blacksea', 'bathy.json'), 'utf8'));
   if (dataset !== 'gshhg' || !/^[clihf]$/.test(String(res))) throw new Error('bad map dataset');
   const p = path.join(__dirname, 'assets', 'blacksea', `blacksea_${res}.json`);
   return JSON.parse(fs.readFileSync(p, 'utf8'));

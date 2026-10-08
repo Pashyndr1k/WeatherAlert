@@ -34,7 +34,10 @@
   }
 
   // Series accessor that also understands derived thresholdable metrics.
-  function seriesValue(hours, metric, t, lat) {
+  // ctx (optional): { lat, lon, depth, fetchKm(dirFrom) } for series-derived metrics such as the sea-state hazard
+  function seriesValue(hours, metric, t, lat, ctx) {
+    const SD = WA.units && WA.units.SERIES_DERIVED;
+    if (SD && SD[metric]) return SD[metric](hours, t, ctx || { lat });
     if (metric === 'd_pressureTendency') return pressureTendency(hours, t);
     if (metric.startsWith('d_')) {
       const U = WA.units;
@@ -51,11 +54,11 @@
   }
 
   // Find the first time in (from, to] at which the threshold becomes exceeded. Scans in 5-min steps.
-  function firstCrossing(hours, th, from, to, lat) {
+  function firstCrossing(hours, th, from, to, lat, ctx) {
     const step = 5 * 60e3;
-    let prevV = seriesValue(hours, th.metric, from, lat);
+    let prevV = seriesValue(hours, th.metric, from, lat, ctx);
     for (let t = from + step; t <= to; t += step) {
-      const v = seriesValue(hours, th.metric, t, lat);
+      const v = seriesValue(hours, th.metric, t, lat, ctx);
       if (v === null) { prevV = v; continue; }
       if (exceeds(th.op, v, th.value)) {
         // refine within the step by linear interpolation
@@ -79,18 +82,19 @@
     for (const p of points) {
       const fc = forecasts[p.id];
       if (!fc || !fc.hours || !fc.hours.length) continue;
+      const ctx = opts.ctxFor ? opts.ctxFor(p) : { lat: p.lat, lon: p.lon };
       for (const th of thresholds) {
         if (!th.enabled) continue;
         if (th.pointIds && th.pointIds.length && !th.pointIds.includes(p.id)) continue;
-        const cur = seriesValue(fc.hours, th.metric, now, p.lat);
+        const cur = seriesValue(fc.hours, th.metric, now, p.lat, ctx);
         if (cur === null || cur === undefined) continue;
         if (exceeds(th.op, cur, th.value)) {
           out.push({ key: `${p.id}|${th.id}|critical`, pointId: p.id, thresholdId: th.id, metric: th.metric, level: 'critical', eta: 0, value: cur, limit: th.value, op: th.op, at: now });
           continue;
         }
-        const tc = firstCrossing(fc.hours, th, now, now + lead, p.lat);
+        const tc = firstCrossing(fc.hours, th, now, now + lead, p.lat, ctx);
         if (tc !== null) {
-          const vAt = seriesValue(fc.hours, th.metric, tc, p.lat);
+          const vAt = seriesValue(fc.hours, th.metric, tc, p.lat, ctx);
           out.push({ key: `${p.id}|${th.id}|warning`, pointId: p.id, thresholdId: th.id, metric: th.metric, level: 'warning', eta: tc - now, value: vAt, limit: th.value, op: th.op, at: tc });
         }
       }

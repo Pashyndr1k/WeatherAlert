@@ -23,7 +23,8 @@
         { id: uid(), metric: 'visibility', op: 'lte', value: 1.0, enabled: true, pointIds: [] },
         { id: uid(), metric: 'd_pressureTendency', op: 'lte', value: -4, enabled: true, pointIds: [] },
         { id: uid(), metric: 'd_icing', op: 'gte', value: 0.7, enabled: true, pointIds: [] },
-        { id: uid(), metric: 'd_advFog', op: 'gte', value: 60, enabled: true, pointIds: [] }
+        { id: uid(), metric: 'd_advFog', op: 'gte', value: 60, enabled: true, pointIds: [] },
+        { id: uid(), metric: 'd_seaHazard', op: 'gte', value: 60, enabled: true, pointIds: [] }
       ],
       points: []
     };
@@ -49,6 +50,12 @@
       state.s.seenIndicators = true;
       // 0.4.1: the right-panel layout became the default; migrate installs that still carry the old default once
       if (!saved.layoutV2) { state.s.layout = 'side'; state.s.layoutV2 = true; }
+      // 0.10.0: sea-state hazard index and steepness widgets + default hazard alarm, added once to existing installs
+      if (!saved.seaHazardV1) {
+        ['d_steepness', 'd_seaHazard'].forEach((id) => { if (!state.s.display.includes(id)) state.s.display.push(id); });
+        if (!state.s.thresholds.some((x) => x.metric === 'd_seaHazard')) state.s.thresholds.push({ id: uid(), metric: 'd_seaHazard', op: 'gte', value: 60, enabled: true, pointIds: [] });
+        state.s.seaHazardV1 = true;
+      }
       // 0.7.0: ship sensors, AIS, depth layer, AI ensemble and the Europe–Asia map were removed — drop their saved state
       delete state.s.sensors; delete state.s.ai; delete state.s.region;
       state.s.layers = { currents: state.s.layers.currents !== false };
@@ -89,12 +96,21 @@
   function isShifted() { return planEta() !== null || state.timeShift > 0; }
   function planShipPoint() { const p = state.plan; return p.on && p.sum && p.sum.ship ? { id: 'ship', name: t('plan_ship'), lat: p.sum.ship.lat, lon: p.sum.ship.lon, ship: true } : null; }
   function forecastOf(pointId) { return pointId === 'ship' ? state.plan.fc : state.forecasts[pointId]; }
+  // depth + upwind fetch for the sea-state hazard (null until the bathy grid is loaded)
+  function ctxFor(p) { return { lat: p.lat, lon: p.lon, depth: WA.bathy.depthAt(p.lat, p.lon), fetchKm: (dirFrom) => WA.bathy.fetchKm(p.lat, p.lon, dirFrom) }; }
+  // value of any metric (plain, derived or series-derived) for point p at time tm
+  function metricAt(id, p, v, tm) {
+    if (U.SERIES_DERIVED[id]) { const fc = forecastOf(p.id); return fc ? U.SERIES_DERIVED[id](fc.hours, tm, ctxFor(p)) : null; }
+    if (id === 'd_pressureTendency') return v ? v.d_pressureTendency : null;
+    if (id.startsWith('d_')) return v ? U.derivedValue(id, v, p.lat) : null;
+    return v ? v[id] : null;
+  }
   // 'critical' when any applicable limit is exceeded in the forecast at time tm (used for shifted views)
   function forecastLevel(p, tm) {
     const fc = forecastOf(p.id); if (!fc) return '';
     for (const th of state.s.thresholds) {
       if (!th.enabled || (th.pointIds.length && !th.pointIds.includes(p.id))) continue;
-      const v = A.seriesValue(fc.hours, th.metric, tm, p.lat);
+      const v = A.seriesValue(fc.hours, th.metric, tm, p.lat, ctxFor(p));
       if (v !== null && v !== undefined && A.exceeds(th.op, v, th.value)) return 'critical';
     }
     return '';
@@ -103,7 +119,7 @@
     const fc = forecastOf(p.id); if (!fc) return '';
     for (const th of state.s.thresholds) {
       if (!th.enabled || (th.pointIds.length && !th.pointIds.includes(p.id))) continue;
-      const v = A.seriesValue(fc.hours, th.metric, tm, p.lat);
+      const v = A.seriesValue(fc.hours, th.metric, tm, p.lat, ctxFor(p));
       if (v !== null && v !== undefined && A.exceeds(th.op, v, th.value)) { const f = fmtMetric(th.metric, v); return `${f.text} ${f.unit}`.toUpperCase(); }
     }
     return '';
@@ -182,7 +198,7 @@
 
   // ------------------------------------------------------------------ alarms
   function evaluateAlarms() {
-    const alarms = A.evaluate(state.s.points, state.forecasts, state.s.thresholds, { leadMinutes: state.s.leadMin });
+    const alarms = A.evaluate(state.s.points, state.forecasts, state.s.thresholds, { leadMinutes: state.s.leadMin, ctxFor });
     const keys = new Set(alarms.map((a) => a.key));
     [...state.seen].forEach((k) => { if (!keys.has(k)) { state.seen.delete(k); state.acked.delete(k); state.reminded.delete(k); delete state.ackedAt[k]; } });
     const fresh = alarms.filter((a) => !state.seen.has(a.key));
@@ -379,8 +395,35 @@
         if (!r) return V('—');
         return V(Math.round(r.p), '%', `${t(`fog_${r.level.replace(' ', '_')}`)} · ${t('td_sst')} ${r.excess >= 0 ? '+' : ''}${r.excess.toFixed(1)}°`);
       }
+      case 'd_steepness': {
+        const r = U.steepness(v);
+        if (!r) return V('—');
+        return V((r.s * 100).toFixed(1), '%', `1:${r.ratio} · ${t(`steep_${r.cls}`)} · L ${Math.round(r.L)} m`);
+      }
+      case 'd_seaHazard': {
+        const r = U.seaHazard(fc.hours, viewTime(), ctxFor(p));
+        if (!r) return V('—');
+        const reason = r.parts.length ? r.parts.slice(0, 2).map((x) => hazardReason(x)).join(' · ') : (ctxFor(p).depth === null ? t('hz_nodepth') : t('hz_none'));
+        return V(r.score, '%', `${t(`hz_${r.cls}`)} · ${reason}`);
+      }
+      case 'd_fetchHs': {
+        const r = U.fetchEstimate(fc.hours, viewTime(), ctxFor(p));
+        if (!r) return V('—', '', t('fetch_none'));
+        const f = fmtMetric('waveHeight', r.hs);
+        return V(f.text, f.unit, t('fetch_sum', { h: r.hours, km: Math.round(r.fetchKm), u: (r.meanU * 1.943844).toFixed(0) }));
+      }
       default: return '';
     }
+  }
+  // one short reason for a hazard component, e.g. "STEEP 1:19", "WIND vs CURRENT 160°", "SHOALING 14 M"
+  function hazardReason(x) {
+    const i = x.info || {};
+    if (x.id === 'steep') return `${t('hz_steep')} 1:${i.ratio}`;
+    if (x.id === 'opposing') return `${t('hz_opposing')} ${Math.round(i.angle)}°`;
+    if (x.id === 'cross') return `${t('hz_cross')} ${Math.round(i.angle)}°`;
+    if (x.id === 'shoal') { const d = fmtMetric('waveHeight', i.depth); return `${t('hz_shoal')} ${d.text} ${d.unit}`; }
+    if (x.id === 'fetch') { const f = fmtMetric('waveHeight', i.hs); return `${t('hz_fetch')} → ${f.text} ${f.unit} · ${i.hours} H`; }
+    return x.id;
   }
 
   // Ratio 0..1+ of how close a value is to its limit (1 = at the limit, >1 = exceeded); null when no limit or value.
@@ -423,7 +466,7 @@
       const id = card.dataset.metric;
       const al = shiftedView ? [] : state.alarms.filter((a) => a.pointId === p.id && a.metric === id);
       let crit = al.find((a) => a.level === 'critical'); const warn = al.find((a) => a.level === 'warning');
-      if (shiftedView && v) { const thx = thresholdFor(id, p.id); const vx = id === 'd_pressureTendency' ? v.d_pressureTendency : id.startsWith('d_') ? U.derivedValue(id, v, p.lat) : v[id]; if (thx && vx !== null && vx !== undefined && A.exceeds(thx.op, vx, thx.value)) crit = true; }
+      if (shiftedView && v) { const thx = thresholdFor(id, p.id); const vx = metricAt(id, p, v, viewTime()); if (thx && vx !== null && vx !== undefined && A.exceeds(thx.op, vx, thx.value)) crit = true; }
       card.classList.toggle('critical', Boolean(crit));
       card.classList.toggle('warning', !crit && Boolean(warn));
       // value-graded colouring
@@ -431,7 +474,7 @@
       card.style.removeProperty('--wc'); card.style.removeProperty('--wc-bg');
       const thc = thresholdFor(id, p.id);
       if (mode !== 'off' && thc && v && !crit) {
-        const val = id === 'd_pressureTendency' ? v.d_pressureTendency : id.startsWith('d_') ? U.derivedValue(id, v, p.lat) : v[id];
+        const val = metricAt(id, p, v, viewTime());
         const r = limitRatio(id, val, thc);
         if (r !== null) {
           const [cr, cg, cb] = gradeColor(r);
@@ -631,7 +674,7 @@
         else if (a.metric === 'd_pressureTendency' && fc) { const pr = fmtMetric('pressure', A.valueAt(fc.hours, 'pressure', Date.now())); sub = `${pr.text} ${pr.unit}`; }
       } else {
         status = t('crit_eta', { eta: fmtEtaClock(a.eta), t: fmtTime(a.at) });
-        const cur = fc ? A.seriesValue(fc.hours, a.metric, Date.now(), p && p.lat) : null;
+        const cur = fc ? A.seriesValue(fc.hours, a.metric, Date.now(), p && p.lat, p ? ctxFor(p) : undefined) : null;
         const cf = fmtMetric(a.metric, cur);
         sub = t('crit_now', { v: `${cf.text} ${cf.unit}`, lead: state.s.leadMin });
       }
@@ -1056,6 +1099,7 @@
     map.setProjection(state.s.projection);
     applyLayout();
     map.loadSeaMask().then(applyLayers, applyLayers);
+    window.bridge.loadMapData('bathy').then((grid) => { WA.bathy.load(grid); evaluateAlarms(); renderAll(); }).catch((e) => console.error('bathy load failed', e));
     if (state.s.points.length && !state.selectedId) state.selectedId = state.s.points[0].id;
     tickClock(); setInterval(tickClock, 1000);
     renderAll(); schedule(); refresh('auto');

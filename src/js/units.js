@@ -22,6 +22,7 @@
     ptend: { hpa3h: { label: 'hPa/3h', f: (v) => v, inv: (v) => v } },
     ratio: { x: { label: '×', f: (v) => v, inv: (v) => v } },
     icing: { cmh: { label: 'cm/h', f: (v) => v, inv: (v) => v } },
+    steep: { pct: { label: '%', f: (v) => v, inv: (v) => v } },
     text: { t: { label: '', f: (v) => v, inv: (v) => v } }
   };
   const DEFAULT_UNITS = { speed: 'kn', length: 'm', depth: 'm', temp: 'c', vis: 'nm' };
@@ -34,7 +35,7 @@
   function decimals(kind, value) {
     if (kind === 'pressure') return 1;
     if (kind === 'pct' || kind === 'dir' || kind === 'factor') return 0;
-    if (kind === 'temp' || kind === 'period' || kind === 'ptend' || kind === 'ratio' || kind === 'icing') return 1;
+    if (kind === 'temp' || kind === 'period' || kind === 'ptend' || kind === 'ratio' || kind === 'icing' || kind === 'steep') return 1;
     if (kind === 'vis') return Math.abs(value) < 10 ? 1 : 0;
     return Math.abs(value) < 10 ? 1 : 0;
   }
@@ -162,13 +163,89 @@
     return { p, excess, level };
   }
   // Numeric value of a thresholdable derived metric (alarm engine + cards)
+  // ---------- sea-state hazard ----------
+  const G = 9.80665;
+  // Deep-water wavelength L = gT²/2π and steepness Hs/L. Classes: < 1:40 gentle, 1:40–1:25 moderate, 1:25–1:18 steep, > 1:18 breaking crests.
+  function steepness(v) {
+    const hs = v && v.waveHeight, tp = v && v.wavePeriod;
+    if (hs === null || hs === undefined || tp === null || tp === undefined || !(tp > 0) || !(hs > 0)) return null;
+    const L = G * tp * tp / (2 * Math.PI), s = hs / L;
+    return { s, L, ratio: Math.round(1 / s), cls: s < 0.025 ? 'gentle' : s < 0.04 ? 'moderate' : s < 0.055 ? 'steep' : 'breaking' };
+  }
+  // JONSWAP fetch-limited growth with the CEM duration limit and the Pierson–Moskowitz fully-developed cap.
+  // U m/s, fetch m, duration s → { hs (m), durLimited, fullyDeveloped }
+  function fetchGrowth(U, fetchM, durS) {
+    if (!(U > 0) || !(fetchM > 0)) return null;
+    const fDur = Math.pow(Math.cbrt(G) * Math.cbrt(U) * Math.max(600, durS) / 68.8, 1.5); // duration-limited equivalent fetch
+    const F = Math.min(fetchM, fDur);
+    const hsFetch = 0.0016 * U * Math.sqrt(F / G), hsFull = 0.0214 * U * U;
+    return { hs: Math.min(hsFetch, hsFull), fetchKm: fetchM / 1000, effKm: F / 1000, durLimited: fDur < fetchM, fullyDeveloped: hsFetch >= hsFull };
+  }
+  // How long the wind at time t has been blowing steadily (≥ 70 % of the current speed, within ±30° of the current direction), hourly samples, max 24 h.
+  function windPersistence(hours, t) {
+    const at = (m, tt) => WA.alarms.valueAt(hours, m, tt);
+    const U0 = at('windSpeed', t), D0 = at('windDirection', t);
+    if (U0 === null || U0 === undefined || D0 === null || D0 === undefined) return null;
+    let k = 1, sum = U0, n = 1;
+    for (; k <= 24; k++) {
+      const u = at('windSpeed', t - k * 3600e3), d = at('windDirection', t - k * 3600e3);
+      if (u === null || u === undefined || d === null || d === undefined) break;
+      let dd = Math.abs(d - D0) % 360; if (dd > 180) dd = 360 - dd;
+      if (u < 0.7 * U0 || dd > 30) break;
+      sum += u; n++;
+    }
+    return { hours: k - 1, meanU: sum / n, U0, dir: D0 };
+  }
+  // Expected Hs from the wind history over the upwind fetch; ctx.fetchKm(dirFrom) gives the open water upwind.
+  function fetchEstimate(hours, t, ctx) {
+    const wp = windPersistence(hours, t);
+    if (!wp || !ctx || typeof ctx.fetchKm !== 'function') return null;
+    const fk = ctx.fetchKm(wp.dir); if (fk === null || fk === undefined) return null;
+    const g = fetchGrowth(wp.meanU, Math.max(2, fk) * 1000, Math.max(1, wp.hours) * 3600);
+    return g ? { ...g, hours: wp.hours, meanU: wp.meanU, dir: wp.dir } : null;
+  }
+  // Sea-state hazard index 0–100 = the strongest of five mechanisms; parts carry the reasons for the widget.
+  // ctx: { lat, lon, depth (m, null unknown), fetchKm(dirFrom) }
+  function seaHazard(hours, t, ctx) {
+    const at = (m) => WA.alarms.valueAt(hours, m, t);
+    const v = {};
+    ['waveHeight', 'wavePeriod', 'windSpeed', 'windDirection', 'currentSpeed', 'currentDirection', 'swellHeight', 'swellDirection', 'windWaveHeight', 'windWaveDirection'].forEach((m) => { v[m] = at(m); });
+    const has = (m) => v[m] !== null && v[m] !== undefined;
+    if (!has('waveHeight') && !has('windSpeed')) return null;
+    const c01 = (x) => Math.max(0, Math.min(1, x));
+    const parts = [];
+    const st = steepness(v);
+    if (st) parts.push({ id: 'steep', score: 100 * c01((st.s - 0.025) / 0.03), info: st });
+    if (has('currentSpeed') && has('currentDirection') && has('windDirection') && has('windSpeed')) {
+      const windTo = (v.windDirection + 180) % 360; let ang = Math.abs(windTo - v.currentDirection) % 360; if (ang > 180) ang = 360 - ang;
+      if (ang >= 120) parts.push({ id: 'opposing', score: 100 * c01((ang - 120) / 60) * c01((v.currentSpeed - 0.2) / 0.6) * c01((v.windSpeed - 8) / 10), info: { angle: ang, cur: v.currentSpeed } });
+    }
+    const cs = crossSea(v);
+    if (cs && cs.name !== 'No') parts.push({ id: 'cross', score: (cs.name === 'Yes' ? 60 : 30) * c01(Math.min(v.swellHeight || 0, v.windWaveHeight || 0) / 1.5) + (cs.name === 'Yes' ? 20 * c01((cs.angle - 60) / 60) : 0), info: cs });
+    if (ctx && ctx.depth !== null && ctx.depth !== undefined && ctx.depth > 0 && st) {
+      const rel = ctx.depth / st.L, hb = v.waveHeight / ctx.depth; // depth/wavelength (< 0.5 = waves feel the bottom), Hs/depth (≥ 0.6 breaking)
+      if (rel < 0.5) parts.push({ id: 'shoal', score: Math.max(100 * c01((0.5 - rel) / 0.4) * c01(v.waveHeight / 2), 100 * c01((hb - 0.3) / 0.3)), info: { depth: ctx.depth, rel, hb } });
+    }
+    const fe = fetchEstimate(hours, t, ctx);
+    if (fe && fe.meanU >= 8 && fe.hs >= 1.5 && fe.hs - (v.waveHeight || 0) >= 0.3) parts.push({ id: 'fetch', score: 100 * c01((fe.hs - 1.5) / 2.5), info: fe });
+    parts.sort((a, b) => b.score - a.score);
+    const score = parts.length ? Math.round(parts[0].score) : 0;
+    return { score, cls: score < 25 ? 'low' : score < 50 ? 'moderate' : score < 75 ? 'high' : 'severe', parts: parts.filter((p) => p.score >= 10) };
+  }
+  // Derived metrics that need the whole series (and a context) rather than one instant's values
+  const SERIES_DERIVED = {
+    d_seaHazard: (hours, t, ctx) => { const r = seaHazard(hours, t, ctx); return r ? r.score : null; },
+    d_fetchHs: (hours, t, ctx) => { const r = fetchEstimate(hours, t, ctx); return r ? r.hs : null; }
+  };
+
   function derivedValue(id, v, lat) {
+    if (id === 'd_steepness') { const r = steepness(v); return r ? r.s * 100 : null; }
     if (id === 'd_icing') { const r = icing(v, lat); return r ? r.rate : null; }
     if (id === 'd_advFog') { const r = advectionFog(v); return r ? r.p : null; }
     if (id === 'd_gustFactor') return v && v.windSpeed && v.gust ? v.gust / Math.max(0.5, v.windSpeed) : null;
     return null;
   }
-  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'] };
+  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'], d_steepness: ['waveHeight', 'wavePeriod'] };
 
   // ---------- coordinate parsing (WGS84 decimal, DDM or DMS) ----------
   function parseCoordPart(str, isLat) {
@@ -214,5 +291,5 @@
     return `${String(d).padStart(3, '0')}°${m.toFixed(1).padStart(4, '0')}'${lon >= 0 ? 'E' : 'W'}`;
   }
 
-  WA.units = { UNITS, DEFAULT_UNITS, unitFor, fmt, compass, beaufort, seaState, cloudCondition, airCondition, fogRisk, crossSea, icing, advectionFog, derivedValue, DERIVED_NEEDS, parseCoords, fmtLat, fmtLon, WMO };
+  WA.units = { UNITS, DEFAULT_UNITS, unitFor, fmt, compass, beaufort, seaState, cloudCondition, airCondition, fogRisk, crossSea, icing, advectionFog, derivedValue, DERIVED_NEEDS, parseCoords, fmtLat, fmtLon, WMO, steepness, fetchGrowth, windPersistence, fetchEstimate, seaHazard, SERIES_DERIVED };
 })();
