@@ -171,6 +171,34 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .layer-btn:hover { border-color: var(--line-3); color: var(--text); }
 .layer-btn.on { color: #5fb0f0; border-color: #5fb0f0; }
 .layer-btn.ruler.on { color: var(--warn); border-color: var(--warn); }
+.layer-btn.plan.on { color: var(--warn); border-color: var(--warn); }
+/* ---------- route planner ---------- */
+@keyframes shipPulse { 0% { transform: scale(.5); opacity: .95; } 100% { transform: scale(2.4); opacity: 0; } }
+.map-svg .ruler .ship { cursor: grab; }
+.map-svg .ruler .ship:active { cursor: grabbing; }
+.map-svg .ruler .ship .dot { fill: var(--warn); stroke: var(--bg); stroke-width: 1.5; }
+.map-svg .ruler .ship .pulse { fill: none; stroke: var(--warn); stroke-width: 1.6; transform-box: fill-box; transform-origin: center; animation: shipPulse 1.6s ease-out infinite; }
+.map-svg .ruler .wp.ext { cursor: pointer; }
+.map-svg .ruler .wp.ext circle { stroke-width: 2.5; }
+.plan-panel .rh { display: flex; justify-content: space-between; gap: 12px; }
+.plan-panel .pl { display: grid; grid-template-columns: 1fr 86px; gap: 8px; margin-bottom: 6px; }
+.plan-panel .pl label { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: .12em; color: var(--text-4); }
+.plan-panel .pl input { background: rgba(255, 255, 255, .04); border: 1px solid var(--line-2); color: var(--text); font: 11px var(--mono); padding: 4px 6px; color-scheme: dark; }
+.plan-panel .pl input:focus { outline: none; border-color: var(--warn); }
+.plan-panel .pr { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 2px 0; }
+.plan-panel .pr span:last-child { text-align: right; color: var(--text); }
+.plan-panel .pr.eta span:last-child { color: var(--warn); }
+/* ---------- forecast time bar (bottom-left) ---------- */
+.timebar { position: absolute; left: 24px; bottom: 44px; z-index: 2; width: 340px; background: rgba(0, 0, 0, .62); border: 1px solid var(--line-2); padding: 8px 10px 6px; font-size: 10px; letter-spacing: .1em; color: var(--text-3); text-transform: uppercase; }
+.timebar.shifted { border-color: var(--warn); }
+.tb-head { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+.tb-val { margin-left: auto; color: var(--text); font-size: 11px; }
+.timebar.shifted .tb-val { color: var(--warn); }
+.tb-now { border: 1px solid var(--line-2); background: transparent; color: var(--text-3); font: 9px var(--mono); letter-spacing: .12em; padding: 2px 6px; cursor: pointer; }
+.tb-now:hover { border-color: var(--text-3); color: var(--text); }
+.timebar:not(.shifted) .tb-now { display: none; }
+.timebar input[type=range] { width: 100%; margin: 2px 0; accent-color: #f0b23a; cursor: pointer; }
+.tb-ticks { display: flex; justify-content: space-between; font-size: 8px; color: var(--text-4); }
 /* ---------- route ruler ---------- */
 .map-svg .ruler path.leg { fill: none; stroke: var(--warn); stroke-linecap: round; }
 .map-svg .ruler path.leg.live { stroke: rgba(240, 178, 58, .55); }

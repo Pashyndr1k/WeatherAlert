@@ -77,7 +77,7 @@
     let loading = null;
     let seaMask = null, currentVectors = [], vecScale = 1;
     const layers = { currents: true };
-    const ruler = { active: false, done: false, pts: [], cursor: null, fmt: null };
+    const ruler = { active: false, done: false, pts: [], cursor: null, fmt: null, mode: 'measure', ship: null }; // mode: 'measure' | 'plan'
 
     const zoom = d3.zoom().scaleExtent([1, 60]).on('zoom', (ev) => {
       transform = ev.transform; k = transform.k;
@@ -305,9 +305,41 @@
     function rulerSummary() {
       const legs = rulerSegments().map((s) => ({ km: distKm(s.a, s.b), brg: bearingDeg(s.a, s.b), live: s.live }));
       const fixed = legs.filter((l) => !l.live);
-      return { active: ruler.active, done: ruler.done, points: ruler.pts.slice(), legs: fixed, cursorLeg: legs.find((l) => l.live) || null, totalKm: fixed.reduce((s, l) => s + l.km, 0) };
+      const totalKm = fixed.reduce((s, l) => s + l.km, 0);
+      const ship = ruler.mode === 'plan' && ruler.done && ruler.pts.length >= 2 ? routePoint(ruler.ship ? ruler.ship.km : 0) : null;
+      return { mode: ruler.mode, active: ruler.active, done: ruler.done, points: ruler.pts.slice(), legs: fixed, cursorLeg: legs.find((l) => l.live) || null, totalKm, ship };
     }
     function emitRuler() { if (handlers.onRuler) handlers.onRuler(rulerSummary()); }
+    function routeTotalKm() { let s = 0; for (let i = 1; i < ruler.pts.length; i++) s += distKm(ruler.pts[i - 1], ruler.pts[i]); return s; }
+    // Position km along the route (clamped), interpolated on the great-circle leg
+    function routePoint(km) {
+      const total = routeTotalKm(); let rem = Math.max(0, Math.min(km, total));
+      for (let i = 1; i < ruler.pts.length; i++) {
+        const d = distKm(ruler.pts[i - 1], ruler.pts[i]);
+        if (rem <= d || i === ruler.pts.length - 1) {
+          const f = d ? Math.min(1, rem / d) : 0;
+          const [lon, lat] = d3.geoInterpolate([ruler.pts[i - 1].lon, ruler.pts[i - 1].lat], [ruler.pts[i].lon, ruler.pts[i].lat])(f);
+          return { lon, lat, km: Math.min(Math.max(0, km), total), totalKm: total, leg: i };
+        }
+        rem -= d;
+      }
+      return { lon: ruler.pts[0].lon, lat: ruler.pts[0].lat, km: 0, totalKm: total, leg: 1 };
+    }
+    // Drag the ship marker: snap the pointer to the nearest point of the route (in projected space)
+    function shipDragged(ev) {
+      const [sx, sy] = d3.pointer(ev.sourceEvent, svg.node()); const [mx, my] = transform.invert([sx, sy]);
+      let best = null, acc = 0;
+      for (let i = 1; i < ruler.pts.length; i++) {
+        const a = projection([ruler.pts[i - 1].lon, ruler.pts[i - 1].lat]), b = projection([ruler.pts[i].lon, ruler.pts[i].lat]);
+        const dx = b[0] - a[0], dy = b[1] - a[1], len2 = dx * dx + dy * dy;
+        const f = len2 ? Math.max(0, Math.min(1, ((mx - a[0]) * dx + (my - a[1]) * dy) / len2)) : 0;
+        const d2 = (mx - (a[0] + dx * f)) ** 2 + (my - (a[1] + dy * f)) ** 2;
+        const legKm = distKm(ruler.pts[i - 1], ruler.pts[i]);
+        if (!best || d2 < best.d2) best = { d2, km: acc + legKm * f };
+        acc += legKm;
+      }
+      if (best) { ruler.ship = { km: best.km }; drawRuler(); emitRuler(); }
+    }
     function drawRuler() {
       const segs = rulerSegments();
       const line = (s) => ({ type: 'LineString', coordinates: [[s.a.lon, s.a.lat], [s.b.lon, s.b.lat]] });
@@ -316,6 +348,18 @@
       const wp = gRuler.selectAll('g.wp').data(ruler.pts).join((enter) => { const g = enter.append('g').attr('class', 'wp'); g.append('circle').attr('r', 4); g.append('text').attr('y', -8); return g; });
       wp.attr('transform', (d) => { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; });
       wp.select('text').text((d, i) => i + 1);
+      // a finished route can be extended by clicking its last waypoint
+      const isLast = (d) => ruler.done && ruler.pts.indexOf(d) === ruler.pts.length - 1;
+      wp.classed('ext', isLast).on('click', (ev, d) => { if (!isLast(d)) return; ev.stopPropagation(); ruler.done = false; drawRuler(); emitRuler(); });
+      // planner: the ship marker (pulsing ring) sits on the route and can be dragged along it
+      const sp = ruler.mode === 'plan' && ruler.done && ruler.pts.length >= 2 ? [routePoint(ruler.ship ? ruler.ship.km : 0)] : [];
+      const ship = gRuler.selectAll('g.ship').data(sp).join((enter) => {
+        const g = enter.append('g').attr('class', 'ship');
+        g.append('circle').attr('class', 'pulse').attr('r', 9); g.append('circle').attr('class', 'dot').attr('r', 5);
+        g.call(d3.drag().on('start', (ev) => { ev.sourceEvent.stopPropagation(); }).on('drag', shipDragged));
+        return g;
+      });
+      ship.attr('transform', (d) => { const [x, y] = projection([d.lon, d.lat]); return `translate(${x},${y}) scale(${1 / k})`; });
       const labels = segs.map((s) => {
         const mid = d3.geoInterpolate([s.a.lon, s.a.lat], [s.b.lon, s.b.lat])(0.5);
         const p = transform.apply(projection(mid));
@@ -324,8 +368,9 @@
       gRulerLabels.selectAll('text').data(labels).join('text').attr('x', (d) => d.x).attr('y', (d) => d.y).attr('class', (d) => (d.live ? 'live' : null)).text((d) => d.t);
     }
     // fmt(km, bearing) renders the on-map leg label in the app's units
-    function setRuler(on, fmt) { ruler.active = Boolean(on); ruler.done = false; ruler.pts = []; ruler.cursor = null; if (fmt) ruler.fmt = fmt; svg.classed('ruler', ruler.active); drawRuler(); emitRuler(); }
-    function clearRuler() { ruler.done = false; ruler.pts = []; ruler.cursor = null; drawRuler(); emitRuler(); }
+    function setRuler(on, fmt, mode) { ruler.active = Boolean(on); ruler.mode = mode || 'measure'; ruler.done = false; ruler.pts = []; ruler.cursor = null; ruler.ship = null; if (fmt) ruler.fmt = fmt; svg.classed('ruler', ruler.active); drawRuler(); emitRuler(); }
+    function clearRuler() { ruler.done = false; ruler.pts = []; ruler.cursor = null; ruler.ship = null; drawRuler(); emitRuler(); }
+    function setShipKm(km) { if (ruler.mode === 'plan' && ruler.done) { ruler.ship = { km }; drawRuler(); emitRuler(); } }
 
     // ---------- public API ----------
     function setProjection(pKey) {
@@ -363,7 +408,7 @@
       ev.preventDefault();
       if (!ruler.active) return;
       if (ruler.done || ruler.pts.length < 2) { clearRuler(); return; }
-      ruler.done = true; ruler.cursor = null; drawRuler(); emitRuler();
+      ruler.done = true; ruler.cursor = null; if (!ruler.ship) ruler.ship = { km: 0 }; drawRuler(); emitRuler();
     });
     svg.on('mousemove', (ev) => {
       const [px, py] = d3.pointer(ev, svg.node());
@@ -376,7 +421,7 @@
     new ResizeObserver(() => resize()).observe(container);
     resize();
 
-    return { setProjection, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, lod: () => currentRes, setCurrents, setLayer, isSea, loadSeaMask, setRuler, clearRuler };
+    return { setProjection, setPoints, setStates, setSelected, flyTo, resetView, resize, inRegion, region: () => region, lod: () => currentRes, setCurrents, setLayer, isSea, loadSeaMask, setRuler, clearRuler, setShipKm };
   }
 
   WA.map = { createMap, REGIONS, PROJECTIONS };

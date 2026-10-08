@@ -33,7 +33,8 @@
     s: defaultSettings(), forecasts: {}, selectedId: null, alarms: [], acked: new Set(), ackedAt: {}, seen: new Set(), reminded: new Set(),
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
     crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
-    currents: { grid: null, fetchedAt: 0, busy: false }, ruler: { on: false, sum: null }
+    currents: { grid: null, fetchedAt: 0, busy: false }, ruler: { on: false, sum: null },
+    plan: { on: false, depart: null, speedKn: 6, sum: null, fc: null, key: null, fetching: false }, timeShift: 0
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -81,10 +82,37 @@
   function fmtMetric(id, canonical) { return U.fmt(mKind(id), canonical, state.s.units); }
   function opSym(op) { return op === 'lte' ? '≤' : '≥'; }
   function pointById(id) { return state.s.points.find((p) => p.id === id); }
-  function currentValues(pointId) {
-    const fc = state.forecasts[pointId];
+  // ---- the moment the widgets and map colours describe: the planner's ETA while the ship is on a finished route,
+  // otherwise now + the time-bar offset. Alarms always use the real clock.
+  function planEta() { const p = state.plan; if (!p.on || !p.sum || !p.sum.ship || !p.depart || !(p.speedKn > 0)) return null; return p.depart + (p.sum.ship.km / (p.speedKn * 1.852)) * 3600e3; }
+  function viewTime() { const e = planEta(); return e !== null ? e : Date.now() + state.timeShift; }
+  function isShifted() { return planEta() !== null || state.timeShift > 0; }
+  function planShipPoint() { const p = state.plan; return p.on && p.sum && p.sum.ship ? { id: 'ship', name: t('plan_ship'), lat: p.sum.ship.lat, lon: p.sum.ship.lon, ship: true } : null; }
+  function forecastOf(pointId) { return pointId === 'ship' ? state.plan.fc : state.forecasts[pointId]; }
+  // 'critical' when any applicable limit is exceeded in the forecast at time tm (used for shifted views)
+  function forecastLevel(p, tm) {
+    const fc = forecastOf(p.id); if (!fc) return '';
+    for (const th of state.s.thresholds) {
+      if (!th.enabled || (th.pointIds.length && !th.pointIds.includes(p.id))) continue;
+      const v = A.seriesValue(fc.hours, th.metric, tm, p.lat);
+      if (v !== null && v !== undefined && A.exceeds(th.op, v, th.value)) return 'critical';
+    }
+    return '';
+  }
+  function forecastCritText(p, tm) {
+    const fc = forecastOf(p.id); if (!fc) return '';
+    for (const th of state.s.thresholds) {
+      if (!th.enabled || (th.pointIds.length && !th.pointIds.includes(p.id))) continue;
+      const v = A.seriesValue(fc.hours, th.metric, tm, p.lat);
+      if (v !== null && v !== undefined && A.exceeds(th.op, v, th.value)) { const f = fmtMetric(th.metric, v); return `${f.text} ${f.unit}`.toUpperCase(); }
+    }
+    return '';
+  }
+  function levelFor(p) { return isShifted() ? forecastLevel(p, viewTime()) : pointLevel(p.id); }
+  function currentValues(pointId, at) {
+    const fc = forecastOf(pointId);
     if (!fc) return null;
-    const now = Date.now(), v = {};
+    const now = at === undefined ? viewTime() : at, v = {};
     METRICS.forEach((m) => { v[m.id] = A.valueAt(fc.hours, m.id, now); });
     v.weatherCode = (() => { const h = fc.hours.filter((x) => x.t <= now).pop() || fc.hours[0]; return h ? h.v.weatherCode : null; })();
     v.d_pressureTendency = A.pressureTendency(fc.hours, now);
@@ -113,6 +141,7 @@
 
   // ------------------------------------------------------------------ clock
   function tickClock() {
+    if (state.timeShift && !state.plan.on) renderTimebar();
     const d = shifted(Date.now());
     $('clockHm').textContent = `${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`;
     $('clockS').textContent = `:${pad2(d.getUTCSeconds())}`;
@@ -209,7 +238,7 @@
     const list = $('pointList');
     list.innerHTML = '';
     state.s.points.forEach((p, i) => {
-      const lvl = pointLevel(p.id);
+      const lvl = levelFor(p);
       const el = document.createElement('div');
       el.className = `rail-row ${lvl} ${p.id === state.selectedId ? 'active' : ''}`;
       el.innerHTML = `<span class="nm"></span><span class="st"></span><button class="rm" type="button" title="${t('remove_point_tip')}">×</button>`;
@@ -231,9 +260,10 @@
     const st = {};
     state.s.points.forEach((p) => {
       const v = currentValues(p.id);
-      const lvl = pointLevel(p.id);
+      const lvl = levelFor(p);
       let critText = '';
-      if (lvl === 'critical') { const a = state.alarms.find((x) => x.pointId === p.id && x.level === 'critical'); if (a) { const f = fmtMetric(a.metric, a.value); critText = `${f.text} ${f.unit}`.toUpperCase(); } }
+      if (lvl === 'critical' && isShifted()) critText = forecastCritText(p, viewTime());
+      else if (lvl === 'critical') { const a = state.alarms.find((x) => x.pointId === p.id && x.level === 'critical'); if (a) { const f = fmtMetric(a.metric, a.value); critText = `${f.text} ${f.unit}`.toUpperCase(); } }
       const cur = v && v.currentSpeed !== null && v.currentSpeed !== undefined && v.currentDirection !== null && v.currentDirection !== undefined ? v.currentDirection : null;
       st[p.id] = { level: lvl, windDir: v ? v.windDirection : null, curDir: cur, critText };
     });
@@ -245,24 +275,26 @@
   }
 
   function renderSelected() {
-    const p = pointById(state.selectedId);
+    const ship = planShipPoint();
+    const p = ship || pointById(state.selectedId);
     const grid = $('metricsGrid');
-    $('selActions').hidden = !p;
+    $('selActions').hidden = !p || Boolean(ship);
     if (!p) {
       $('selState').textContent = t('no_selection'); $('selState').className = 'sel-state';
       $('selName').textContent = '—'; $('selCoords').textContent = '';
       grid.innerHTML = '';
       return;
     }
-    const lvl = pointLevel(p.id);
-    $('selState').textContent = lvl === 'critical' ? t('selected_state_crit') : lvl === 'warning' ? t('selected_state_warn') : t('selected_state_ok');
+    const lvl = levelFor(p);
+    const shiftedView = isShifted();
+    $('selState').textContent = shiftedView ? (lvl === 'critical' ? t('fc_state_crit') : t('fc_state_ok')) : lvl === 'critical' ? t('selected_state_crit') : lvl === 'warning' ? t('selected_state_warn') : t('selected_state_ok');
     $('selState').className = `sel-state ${lvl}`;
     $('selName').textContent = p.name;
-    $('selCoords').textContent = `${U.fmtLat(p.lat)} ${U.fmtLon(p.lon)}`;
-    const fc = state.forecasts[p.id];
+    $('selCoords').textContent = `${U.fmtLat(p.lat)} ${U.fmtLon(p.lon)}` + (shiftedView ? ` · ${t('fc_at')} ${fmtTime(viewTime())}` : '');
+    const fc = forecastOf(p.id);
     const v = currentValues(p.id);
     grid.innerHTML = '';
-    if (!fc) { grid.innerHTML = `<div class="card placeholder">${state.busy ? t('loading') : (state.error || t('no_data'))}</div>`; return; }
+    if (!fc) { grid.innerHTML = `<div class="card placeholder">${state.busy || (ship && state.plan.fetching) ? t('loading') : (state.error || t('no_data'))}</div>`; return; }
     const order = state.s.display.map((id) => BY_ID[id]).filter(Boolean);
     order.forEach((m) => {
       const card = document.createElement('div');
@@ -279,7 +311,7 @@
       } else {
         const f = fmtMetric(m.id, v[m.id]);
         const th = thresholdFor(m.id, p.id);
-        const pk = A.peak(fc.hours, m.id, Date.now(), 24 * 3600e3, th ? th.op : 'gte');
+        const pk = A.peak(fc.hours, m.id, viewTime(), 24 * 3600e3, th ? th.op : 'gte');
         const pkf = pk ? fmtMetric(m.id, pk.v) : null;
         let sub = pk ? `${th && th.op === 'lte' ? t('min24') : t('max24')} ${pkf.text} ${pkf.unit} · ${fmtTime(pk.t)}` : '';
         if (m.id === 'windSpeed') { const b = U.beaufort(v.windSpeed); const d = U.fmt('dir', v.windDirection, state.s.units); sub = `${t('from')} ${d.text}${b ? ` · ${t('bft')} ${b.force}` : ''}`; }
@@ -352,8 +384,18 @@
   }
 
   // Ratio 0..1+ of how close a value is to its limit (1 = at the limit, >1 = exceeded); null when no limit or value.
+  // Metrics whose natural floor is not zero are graded over a realistic span instead of a ratio to the limit:
+  // sea-level pressure lives in 980–1030 hPa on most days (880–1080 physically), so 30–40 hPa is already a big change.
+  const GRADE_SPAN = { pressure: { hi: 1030, lo: 980 }, airTemperature: { span: 10 }, waterTemperature: { span: 10 }, dewPointTemperature: { span: 10 }, surfaceTemperature: { span: 10 } };
   function limitRatio(metricId, value, th) {
     if (!th || value === null || value === undefined || Number.isNaN(value)) return null;
+    const g = GRADE_SPAN[metricId];
+    if (g && g.hi !== undefined) {
+      // 0 at the far edge of the normal band, 1 at the limit: a 980 hPa limit reads 0.34 at 1013, 0.6 at 1000, 0.8 at 990
+      if (th.op === 'lte') { const ref = Math.max(g.hi, th.value + 30); return Math.max(0, (ref - value) / (ref - th.value)); }
+      const ref = Math.min(g.lo, th.value - 30); return Math.max(0, (value - ref) / (th.value - ref));
+    }
+    if (g && g.span) return Math.max(0, th.op === 'gte' ? 1 - (th.value - value) / g.span : 1 - (value - th.value) / g.span);
     if (th.op === 'gte') return th.value > 0 ? value / th.value : (value >= th.value ? 1 : 0);
     // "falls to": closeness grows as the value drops towards the limit (visibility, pressure tendency…)
     if (th.value > 0) return value <= 0 ? 1.2 : th.value / value;
@@ -372,14 +414,16 @@
     return c;
   }
   function applyCardStates() {
-    const p = pointById(state.selectedId);
+    const p = planShipPoint() || pointById(state.selectedId);
     if (!p) return;
     const v = currentValues(p.id);
     const mode = state.s.widgetColor || 'off';
+    const shiftedView = isShifted();
     document.querySelectorAll('#metricsGrid .card').forEach((card) => {
       const id = card.dataset.metric;
-      const al = state.alarms.filter((a) => a.pointId === p.id && a.metric === id);
-      const crit = al.find((a) => a.level === 'critical'), warn = al.find((a) => a.level === 'warning');
+      const al = shiftedView ? [] : state.alarms.filter((a) => a.pointId === p.id && a.metric === id);
+      let crit = al.find((a) => a.level === 'critical'); const warn = al.find((a) => a.level === 'warning');
+      if (shiftedView && v) { const thx = thresholdFor(id, p.id); const vx = id === 'd_pressureTendency' ? v.d_pressureTendency : id.startsWith('d_') ? U.derivedValue(id, v, p.lat) : v[id]; if (thx && vx !== null && vx !== undefined && A.exceeds(thx.op, vx, thx.value)) crit = true; }
       card.classList.toggle('critical', Boolean(crit));
       card.classList.toggle('warning', !crit && Boolean(warn));
       // value-graded colouring
@@ -491,7 +535,7 @@
       if (ev.key === 'Escape') { ev.preventDefault(); snoozeCrit(); return; }
       if (ev.key === 'Enter') { ev.preventDefault(); ackCrit(); return; }
     }
-    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); if (state.ruler.on && map) map.clearRuler(); }
+    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); if ((state.ruler.on || state.plan.on) && map) map.clearRuler(); }
   });
   function openAddPoint(prefill) {
     $('ptName').value = '';
@@ -881,8 +925,9 @@
   const fmtBrg = (b) => `${String(Math.round(b) % 360).padStart(3, '0')}°`;
   function rulerLabel(km, brg) { return `${fmtDist(km)} · ${fmtBrg(brg)}`; }
   function setRulerMode(on) {
+    if (on && state.plan.on) setPlanMode(false);
     state.ruler.on = on; $('btnRuler').classList.toggle('on', on);
-    map.setRuler(on, rulerLabel);
+    map.setRuler(on, rulerLabel, 'measure');
   }
   function renderRuler(sum) {
     state.ruler.sum = sum;
@@ -893,6 +938,73 @@
     el.innerHTML = `<div class="rh">${t('ruler_title')}${sum.points.length ? ` · ${sum.points.length} WP` : ''}</div>${rows}<div class="rt"><span>${t('ruler_total')}</span><span>${fmtDist(sum.totalKm)}</span></div><div class="rhint">${hint}</div>`;
   }
   $('btnRuler').addEventListener('click', () => setRulerMode(!state.ruler.on));
+
+  // ------------------------------------------------------------------ route planner (bottom-right button)
+  function onRoute(sum) { if (sum.mode === 'plan') { state.plan.sum = sum; renderPlan(); ensureShipForecast(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } else renderRuler(sum); }
+  // datetime-local <-> ms in the app's time zone
+  function toLocalInput(ms) { const d = shifted(ms); return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}T${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; }
+  function fromLocalInput(s) { const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(s || ''); if (!m) return null; return Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) - tzOffset() * 60e3; }
+  function setPlanMode(on) {
+    if (on && state.ruler.on) setRulerMode(false);
+    state.plan.on = on; $('btnPlan').classList.toggle('on', on);
+    if (on) state.plan.depart = Math.ceil(Date.now() / 600e3) * 600e3;
+    state.plan.sum = null; state.plan.fc = null; state.plan.key = null;
+    map.setRuler(on, rulerLabel, on ? 'plan' : 'measure');
+    $('planPanel').hidden = !on;
+    if (on) { $('planDepart').value = toLocalInput(state.plan.depart); $('planSpeed').value = String(state.plan.speedKn); }
+    renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints();
+  }
+  function renderPlan() {
+    const p = state.plan; if (!p.on) return;
+    const sum = p.sum;
+    $('planTotal').textContent = sum && sum.points.length ? `${sum.points.length} WP · ${fmtDist(sum.totalKm)}` : '';
+    const rows = [];
+    if (sum && sum.ship) {
+      const s = sum.ship, eta = planEta(), etaEnd = p.depart && p.speedKn > 0 ? p.depart + (sum.totalKm / (p.speedKn * 1.852)) * 3600e3 : null;
+      const row = (k, val, cls = '') => `<div class="pr${cls}"><span>${k}</span><span>${val}</span></div>`;
+      rows.push(row(t('plan_pos'), `${U.fmtLat(s.lat)} ${U.fmtLon(s.lon)}`));
+      rows.push(row(t('plan_from_start'), `${fmtDist(s.km)} · ${t('plan_leg')} ${s.leg}`));
+      if (eta !== null) rows.push(row(t('plan_eta_here'), `${fmtDay(eta)} ${fmtTime(eta)}`, ' eta'));
+      if (etaEnd !== null) rows.push(row(t('plan_eta_end'), `${fmtDay(etaEnd)} ${fmtTime(etaEnd)}`));
+    }
+    $('planShip').innerHTML = rows.join('');
+    $('planHint').textContent = sum && sum.done ? t('plan_hint_done') : t('plan_hint');
+  }
+  function fmtDay(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}`; }
+  // forecast for the ship's position: fetched when the position moves to another ~5 km cell, cached per cell
+  let shipFetchT = null;
+  function ensureShipForecast() {
+    const sp = planShipPoint(); if (!sp) return;
+    const key = `${Math.round(sp.lat / 0.05)}|${Math.round(sp.lon / 0.05)}`;
+    if (key === state.plan.key) return;
+    clearTimeout(shipFetchT);
+    shipFetchT = setTimeout(async () => {
+      if (!state.plan.on) return;
+      state.plan.key = key; state.plan.fetching = true; renderSelected();
+      try {
+        const params = Array.from(new Set([...state.s.display, ...state.s.thresholds.map((x) => x.metric)])).filter((id) => BY_ID[id] && BY_ID[id].sg && !id.startsWith('d_'));
+        const res = await window.bridge.fetchWeather([{ id: 'ship', lat: sp.lat, lon: sp.lon }], { provider: state.s.provider, params, source: state.s.sgSource, hours: 72 });
+        if (state.plan.key === key) state.plan.fc = res[0] || null;
+      } catch (e) { toast(String(e.message || e), 'err'); state.plan.key = null; }
+      finally { state.plan.fetching = false; renderSelected(); renderMapStates(); renderPoints(); }
+    }, 350);
+  }
+  $('btnPlan').addEventListener('click', () => setPlanMode(!state.plan.on));
+  $('planDepart').addEventListener('change', () => { const ms = fromLocalInput($('planDepart').value); if (ms !== null) { state.plan.depart = ms; renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } });
+  $('planSpeed').addEventListener('input', () => { const v = Number($('planSpeed').value); if (v > 0) { state.plan.speedKn = v; renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } });
+
+  // ------------------------------------------------------------------ 24 h forecast time bar (bottom-left)
+  function renderTimebar() {
+    const eta = planEta(); const bar = $('timebar');
+    bar.classList.toggle('shifted', isShifted());
+    $('timeRange').disabled = eta !== null;
+    if (eta !== null) { $('timeVal').textContent = `${t('plan_ship')} · ${fmtDay(eta)} ${fmtTime(eta)}`; return; }
+    const m = Math.round(state.timeShift / 60e3);
+    $('timeVal').textContent = m ? `+${Math.floor(m / 60)}:${pad2(m % 60)} · ${fmtTime(Date.now() + state.timeShift)}` : t('time_now');
+  }
+  function setTimeShift(min) { state.timeShift = Math.max(0, Math.min(1440, min)) * 60e3; $('timeRange').value = String(Math.round(state.timeShift / 60e3)); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); }
+  $('timeRange').addEventListener('input', () => setTimeShift(Number($('timeRange').value)));
+  $('btnTimeNow').addEventListener('click', () => setTimeShift(0));
 
   // ------------------------------------------------------------------ layout
   function applyLayout() {
@@ -936,7 +1048,7 @@
         tag.style.left = `${ll.px + 14}px`; tag.style.top = `${ll.py + 14}px`;
       },
       onLeave: () => { $('cursorTag').hidden = true; },
-      onRuler: renderRuler,
+      onRuler: onRoute,
       loadData: (dataset, res) => window.bridge.loadMapData(dataset, res),
       onLod: () => renderMapStates(),
       onGrid: (step) => { const m = Math.round(step * 60); $('gridText').textContent = step >= 1 ? `${step}°` : `${m}'`; renderMapStates(); }
