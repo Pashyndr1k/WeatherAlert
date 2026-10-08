@@ -13,7 +13,7 @@
   function defaultSettings() {
     return {
       provider: 'openmeteo', projection: 'mercator', refreshMin: 30, sgSource: 'sg',
-      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'coarse', widgetColor: 'value', coordPrecision: 0.05,
+      leadMin: 90, volume: 60, sound: true, notify: true, flash: true, muted: false, lang: 'en', tz: 180, layout: 'side', layers: { currents: true }, currentsDensity: 'coarse', widgetColor: 'value', coordPrecision: 0.05, plan: { pts: [], depart: null, speedKn: 6 },
       units: { speed: 'kn', length: 'm', temp: 'c', vis: 'nm' },
       display: [...METRICS, ...DERIVED].filter((m) => m.def).map((m) => m.id),
       thresholds: [
@@ -35,7 +35,7 @@
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
     crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
     currents: { grid: null, fetchedAt: 0, busy: false }, ruler: { on: false, sum: null },
-    plan: { on: false, depart: null, speedKn: 6, sum: null, fc: null, key: null, fetching: false }, timeShift: 0
+    plan: { on: false, sum: null, fc: null, key: null, fetching: false, samples: [], samplesKey: null, play: null, focus: true }, timeShift: 0
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -44,7 +44,7 @@
     const saved = await window.bridge.getSettings();
     if (saved) {
       const d = defaultSettings();
-      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) } };
+      state.s = { ...d, ...saved, units: { ...d.units, ...(saved.units || {}) }, layers: { ...d.layers, ...(saved.layers || {}) }, plan: { ...d.plan, ...(saved.plan || {}) } };
       // make sure the new default indicators appear for existing installs
       ['d_icing', 'd_advFog'].forEach((id) => { if (!saved.display) return; if (!state.s.display.includes(id) && saved.display.length && !saved.seenIndicators) state.s.display.push(id); });
       state.s.seenIndicators = true;
@@ -56,6 +56,7 @@
         if (!state.s.thresholds.some((x) => x.metric === 'd_seaHazard')) state.s.thresholds.push({ id: uid(), metric: 'd_seaHazard', op: 'gte', value: 60, enabled: true, pointIds: [] });
         state.s.seaHazardV1 = true;
       }
+      if (!saved.waveEnergyV1) { if (!state.s.display.includes('d_waveEnergy')) state.s.display.push('d_waveEnergy'); state.s.waveEnergyV1 = true; }
       // 0.7.0: ship sensors, AIS, depth layer, AI ensemble and the Europe–Asia map were removed — drop their saved state
       delete state.s.sensors; delete state.s.ai; delete state.s.region;
       state.s.layers = { currents: state.s.layers.currents !== false };
@@ -91,10 +92,11 @@
   function pointById(id) { return state.s.points.find((p) => p.id === id); }
   // ---- the moment the widgets and map colours describe: the planner's ETA while the ship is on a finished route,
   // otherwise now + the time-bar offset. Alarms always use the real clock.
-  function planEta() { const p = state.plan; if (!p.on || !p.sum || !p.sum.ship || !p.depart || !(p.speedKn > 0)) return null; return p.depart + (p.sum.ship.km / (p.speedKn * 1.852)) * 3600e3; }
+  function planEta() { const p = state.plan; if (!p.on || !p.sum || !p.sum.ship) return null; return etaAtKm(p.sum.ship.km); }
   function viewTime() { const e = planEta(); return e !== null ? e : Date.now() + state.timeShift; }
   function isShifted() { return planEta() !== null || state.timeShift > 0; }
-  function planShipPoint() { const p = state.plan; return p.on && p.sum && p.sum.ship ? { id: 'ship', name: t('plan_ship'), lat: p.sum.ship.lat, lon: p.sum.ship.lon, ship: true } : null; }
+  // the ship owns the right panel and the view time while it is the last thing moved; selecting a tracking point hands them back
+  function planShipPoint() { const p = state.plan; return p.on && p.focus && p.sum && p.sum.ship ? { id: 'ship', name: t('plan_ship'), lat: p.sum.ship.lat, lon: p.sum.ship.lon, ship: true } : null; }
   function forecastOf(pointId) { return pointId === 'ship' ? state.plan.fc : state.forecasts[pointId]; }
   // depth + upwind fetch for the sea-state hazard (null until the bathy grid is loaded)
   function ctxFor(p) { return { lat: p.lat, lon: p.lon, depth: WA.bathy.depthAt(p.lat, p.lon), fetchKm: (dirFrom) => WA.bathy.fetchKm(p.lat, p.lon, dirFrom) }; }
@@ -179,6 +181,7 @@
       const res = await window.bridge.fetchWeather(state.s.points.map((p) => ({ id: p.id, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params, source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
       res.forEach((fc) => { state.forecasts[fc.pointId] = fc; if (fc.meta && fc.meta.quota) state.quota = { used: fc.meta.used, quota: fc.meta.quota }; });
       state.lastRefresh = Date.now();
+      state.plan.samplesKey = null; ensureRouteSamples();
       if (reason === 'manual') toast(t('updated'), 'ok');
     } catch (e) {
       state.error = e.message || String(e);
@@ -412,6 +415,12 @@
         const f = fmtMetric('waveHeight', r.hs);
         return V(f.text, f.unit, t('fetch_sum', { h: r.hours, km: Math.round(r.fetchKm), u: (r.meanU * 1.943844).toFixed(0) }));
       }
+      case 'd_waveEnergy': {
+        const r = U.waveEnergy(v);
+        if (!r) return V('—');
+        const f = U.fmt('energy', r.e, state.s.units);
+        return V(f.text, f.unit, `${r.p !== null ? `${(r.p / 1000).toFixed(1)} kW/m · ` : ''}${t('energy_law')}`);
+      }
       default: return '';
     }
   }
@@ -428,8 +437,8 @@
 
   // Ratio 0..1+ of how close a value is to its limit (1 = at the limit, >1 = exceeded); null when no limit or value.
   // Metrics whose natural floor is not zero are graded over a realistic span instead of a ratio to the limit:
-  // sea-level pressure lives in 980–1030 hPa on most days (880–1080 physically), so 30–40 hPa is already a big change.
-  const GRADE_SPAN = { pressure: { hi: 1030, lo: 980 }, airTemperature: { span: 10 }, waterTemperature: { span: 10 }, dewPointTemperature: { span: 10 }, surfaceTemperature: { span: 10 } };
+  // pressure and temperatures: the tint starts 10 units before the limit (user request: react within ±10 hPa of the threshold).
+  const GRADE_SPAN = { pressure: { span: 10 }, airTemperature: { span: 10 }, waterTemperature: { span: 10 }, dewPointTemperature: { span: 10 }, surfaceTemperature: { span: 10 } };
   function limitRatio(metricId, value, th) {
     if (!th || value === null || value === undefined || Number.isNaN(value)) return null;
     const g = GRADE_SPAN[metricId];
@@ -579,7 +588,7 @@
   }
 
   // ------------------------------------------------------------------ points
-  function select(id) { state.selectedId = id; renderPoints(); renderSelected(); renderMapStates(); }
+  function select(id) { state.selectedId = id; state.plan.focus = false; renderPoints(); renderSelected(); renderMapStates(); renderTimebar(); }
   function addPoint(name, lat, lon) {
     if (state.s.points.length >= MAX_POINTS) { toast(t('max_points', { n: MAX_POINTS }), 'err'); return false; }
     if (!map.inRegion(lat, lon)) { toast(t('outside_region', { r: map.region().name }), 'err'); return false; }
@@ -608,7 +617,7 @@
       if (ev.key === 'Escape') { ev.preventDefault(); snoozeCrit(); return; }
       if (ev.key === 'Enter') { ev.preventDefault(); ackCrit(); return; }
     }
-    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); if ((state.ruler.on || state.plan.on) && map) map.clearRuler(); }
+    if (ev.key === 'Escape') { document.querySelectorAll('.modal').forEach((m) => { m.hidden = true; }); closeLimitEditor(); if (map && state.ruler.on) map.clearMeasure(); if (map && state.plan.on) map.cancelDrawing(); }
   });
   function openAddPoint(prefill) {
     $('ptName').value = '';
@@ -905,7 +914,7 @@
     save(); schedule(); setView('home');
     if (prevProvider !== s.provider || key || prevPrec !== s.coordPrecision) { state.forecasts = {}; state.quota = null; state.plan.key = null; }
     if (prevUnits !== JSON.stringify(s.units)) state.lastShown = {};
-    evaluateAlarms(); renderAll();
+    evaluateAlarms(); renderAll(); invalidateRouteColors(); map.setRouteColor(routeColorAt);
     if (prevProvider !== s.provider || key || prevPrec !== s.coordPrecision || !state.lastRefresh) refresh('auto');
     toast(t('settings_applied'), 'ok');
   });
@@ -994,14 +1003,14 @@
     $('currentsMeta').textContent = !state.s.layers.currents ? '' : c.busy && !c.grid ? t('currents_loading') : c.grid ? t('currents_meta', { t: fmtTime(c.fetchedAt), n: c.grid.filter((g) => g.hours.length).length }) : '';
   }
 
-  // ------------------------------------------------------------------ route ruler (bottom-right button)
+  // ------------------------------------------------------------------ measuring ruler (bottom-right button)
   function fmtDist(km) { const nm = km / 1.852; return state.s.units.vis === 'km' ? `${km.toFixed(km < 10 ? 2 : 1)} km` : `${nm.toFixed(nm < 10 ? 2 : 1)} NM`; }
   const fmtBrg = (b) => `${String(Math.round(b) % 360).padStart(3, '0')}°`;
   function rulerLabel(km, brg) { return `${fmtDist(km)} · ${fmtBrg(brg)}`; }
   function setRulerMode(on) {
     if (on && state.plan.on) setPlanMode(false);
     state.ruler.on = on; $('btnRuler').classList.toggle('on', on);
-    map.setRuler(on, rulerLabel, 'measure');
+    map.setTool(on ? 'measure' : (state.plan.on ? 'plan' : null), rulerLabel);
   }
   function renderRuler(sum) {
     state.ruler.sum = sum;
@@ -1014,8 +1023,18 @@
   $('btnRuler').addEventListener('click', () => setRulerMode(!state.ruler.on));
 
   // ------------------------------------------------------------------ route planner (bottom-right button)
-  function onRoute(sum) { if (sum.mode === 'plan') { state.plan.sum = sum; renderPlan(); ensureShipForecast(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } else renderRuler(sum); }
-  // datetime-local <-> ms in the app's time zone
+  // The route (waypoints, departure, speed) lives in settings.plan and survives restarts; it stays on the map, dimmed,
+  // while the planner is off and is removed only with CLEAR ROUTE or by deleting its waypoints.
+  const KN_MS = 0.514444;
+  function planCfg() { return state.s.plan; }
+  function etaAtKm(km) { const c = planCfg(); if (!c.depart || !(c.speedKn > 0)) return null; return c.depart + (km / (c.speedKn * 1.852)) * 3600e3; }
+  function onRoute(sum) {
+    const prev = state.plan.sum;
+    if (sum.ship && (!prev || !prev.ship || Math.abs(prev.ship.km - sum.ship.km) > 1e-6 || !prev.done)) state.plan.focus = true;
+    state.plan.sum = sum;
+    if (!sum.dragging) { planCfg().pts = sum.points; save(); ensureShipForecast(); ensureRouteSamples(); }
+    renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints();
+  }
   // departure field: DD.MM.YY HH:MM in the app's time zone (24 h clock; separators . / - : all accepted on input)
   function toLocalInput(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${pad2(d.getUTCFullYear() % 100)} ${pad2(d.getUTCHours())}:${pad2(d.getUTCMinutes())}`; }
   function fromLocalInput(s) {
@@ -1024,34 +1043,42 @@
     if (mo < 0 || mo > 11 || d < 1 || d > 31 || hh > 23 || mi > 59) return null;
     return Date.UTC(y, mo, d, hh, mi) - tzOffset() * 60e3;
   }
+  function fmtDay(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${pad2(d.getUTCFullYear() % 100)}`; }
   function setPlanMode(on) {
     if (on && state.ruler.on) setRulerMode(false);
+    stopPlay();
     state.plan.on = on; $('btnPlan').classList.toggle('on', on);
-    if (on) state.plan.depart = Math.ceil(Date.now() / 600e3) * 600e3;
-    state.plan.sum = null; state.plan.fc = null; state.plan.key = null;
-    map.setRuler(on, rulerLabel, on ? 'plan' : 'measure');
+    const c = planCfg(); if (on && !c.depart) { c.depart = Math.ceil(Date.now() / 600e3) * 600e3; save(); }
     $('planPanel').hidden = !on;
-    if (on) { $('planDepart').value = toLocalInput(state.plan.depart); $('planSpeed').value = String(state.plan.speedKn); }
-    renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints();
+    if (on) fillPlanInputs();
+    map.setTool(on ? 'plan' : null, rulerLabel); // emits onRoute → everything re-renders
   }
+  function fillPlanInputs() {
+    const c = planCfg();
+    $('planDepart').value = c.depart ? toLocalInput(c.depart) : ''; $('planDepart').classList.remove('invalid');
+    $('planSpeed').value = String(c.speedKn); $('planSpeedMs').value = (c.speedKn * KN_MS).toFixed(1);
+  }
+  function planChanged() { invalidateRouteColors(); map.setRouteColor(routeColorAt); renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); }
+  function setDepart(ms) { planCfg().depart = ms; save(); fillPlanInputs(); planChanged(); }
+  function setSpeed(kn) { if (!(kn > 0)) return; planCfg().speedKn = Math.round(Math.min(60, kn) * 10) / 10; save(); fillPlanInputs(); planChanged(); }
   function renderPlan() {
     const p = state.plan; if (!p.on) return;
-    const sum = p.sum;
+    const sum = p.sum, c = planCfg();
     $('planTotal').textContent = sum && sum.points.length ? `${sum.points.length} WP · ${fmtDist(sum.totalKm)}` : '';
     const rows = [];
     if (sum && sum.ship) {
-      const s = sum.ship, eta = planEta(), etaEnd = p.depart && p.speedKn > 0 ? p.depart + (sum.totalKm / (p.speedKn * 1.852)) * 3600e3 : null;
+      const s = sum.ship, eta = planEta(), etaEnd = etaAtKm(sum.totalKm);
       const row = (k, val, cls = '') => `<div class="pr${cls}"><span>${k}</span><span>${val}</span></div>`;
       rows.push(row(t('plan_pos'), `${U.fmtLat(s.lat)} ${U.fmtLon(s.lon)}`));
       rows.push(row(t('plan_from_start'), `${fmtDist(s.km)} · ${t('plan_leg')} ${s.leg}`));
       if (eta !== null) rows.push(row(t('plan_eta_here'), `${fmtDay(eta)} ${fmtTime(eta)}`, ' eta'));
-      if (etaEnd !== null) rows.push(row(t('plan_eta_end'), `${fmtDay(etaEnd)} ${fmtTime(etaEnd)}`));
+      if (etaEnd !== null) rows.push(row(t('plan_eta_end'), `${fmtDay(etaEnd)} ${fmtTime(etaEnd)} · ${fmtEta(etaEnd - (c.depart || etaEnd))}`));
     }
     $('planShip').innerHTML = rows.join('');
-    $('planHint').textContent = sum && sum.done ? t('plan_hint_done') : t('plan_hint');
+    $('planHint').textContent = !sum || !sum.points.length ? t('plan_hint') : sum.done ? t('plan_hint_done') : t('plan_hint_drawing');
+    $('btnPlanClear').hidden = !(sum && sum.points.length);
   }
-  function fmtDay(ms) { const d = shifted(ms); return `${pad2(d.getUTCDate())}.${pad2(d.getUTCMonth() + 1)}.${pad2(d.getUTCFullYear() % 100)}`; }
-  // forecast for the ship's position: fetched when the position moves to another ~5 km cell, cached per cell
+  // forecast for the ship's position: fetched when the position moves to another grid cell, cached per cell
   let shipFetchT = null;
   function ensureShipForecast() {
     const sp = planShipPoint(); if (!sp) return;
@@ -1062,34 +1089,111 @@
       if (!state.plan.on) return;
       state.plan.key = key; state.plan.fetching = true; renderSelected();
       try {
-        const params = Array.from(new Set([...state.s.display, ...state.s.thresholds.map((x) => x.metric)])).filter((id) => BY_ID[id] && BY_ID[id].sg && !id.startsWith('d_'));
-        const res = await window.bridge.fetchWeather([{ id: 'ship', lat: sp.lat, lon: sp.lon }], { provider: state.s.provider, params, source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
+        const res = await window.bridge.fetchWeather([{ id: 'ship', lat: sp.lat, lon: sp.lon }], { provider: state.s.provider, params: requestParams(), source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
         if (state.plan.key === key) state.plan.fc = res[0] || null;
       } catch (e) { toast(String(e.message || e), 'err'); state.plan.key = null; }
       finally { state.plan.fetching = false; renderSelected(); renderMapStates(); renderPoints(); }
     }, 350);
   }
+  function requestParams() { return Array.from(new Set([...state.s.display, ...state.s.thresholds.map((x) => x.metric)])).filter((id) => BY_ID[id] && BY_ID[id].sg && !id.startsWith('d_')); }
+  // Forecast samples along the laid route (every ≥ 8 km, ≤ ~40 points, one batched Open-Meteo call) colour the line
+  // by the weather the ship meets at each place at its ETA there. Stormglass bills per point, so no gradient with it.
+  let routeFetchT = null;
+  function ensureRouteSamples() {
+    const sum = state.plan.sum;
+    if (!sum || !sum.done || sum.points.length < 2 || state.s.provider === 'stormglass') { state.plan.samples = []; state.plan.samplesKey = null; invalidateRouteColors(); map.setRouteColor(routeColorAt); return; }
+    const step = Math.max(8, sum.totalKm / 40), pts = [];
+    for (let km = 0; km <= sum.totalKm + 1e-6; km += step) { const rp = map.routePoint(Math.min(km, sum.totalKm)); pts.push({ km: rp.km, lat: rp.lat, lon: rp.lon }); }
+    const prec = Math.max(0.01, Number(state.s.coordPrecision) || 0.05);
+    const key = pts.map((p) => `${Math.round(p.lat / prec)}|${Math.round(p.lon / prec)}`).join(';');
+    if (key === state.plan.samplesKey) { invalidateRouteColors(); map.setRouteColor(routeColorAt); return; }
+    clearTimeout(routeFetchT);
+    routeFetchT = setTimeout(async () => {
+      state.plan.samplesKey = key;
+      try {
+        const res = await window.bridge.fetchWeather(pts.map((p, i) => ({ id: `rs${i}`, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params: requestParams(), source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
+        if (state.plan.samplesKey !== key) return;
+        state.plan.samples = pts.map((p, i) => ({ ...p, fc: res.find((r) => r.pointId === `rs${i}`) || null }));
+      } catch (e) { state.plan.samplesKey = null; state.plan.samples = []; }
+      invalidateRouteColors(); map.setRouteColor(routeColorAt);
+    }, 600);
+  }
+  const routeColorCache = new Map();
+  function invalidateRouteColors() { routeColorCache.clear(); }
+  // Colour of the route at km: how close the worst global limit is at the ship's ETA there (green → amber → red = exceeded)
+  function routeColorAt(km) {
+    const S = state.plan.samples; if (!S || !S.length) return null;
+    let best = S[0]; for (const s of S) if (Math.abs(s.km - km) < Math.abs(best.km - km)) best = s;
+    if (!best.fc) return null;
+    const eta = etaAtKm(km); if (eta === null) return null;
+    const ck = `${best.km.toFixed(1)}|${Math.round(eta / 600e3)}`;
+    if (routeColorCache.has(ck)) return routeColorCache.get(ck);
+    const p = { id: 'route', lat: best.lat, lon: best.lon }, ctx = ctxFor(p);
+    let worst = 0, any = false;
+    for (const th of state.s.thresholds) {
+      if (!th.enabled || th.pointIds.length) continue;
+      const v = A.seriesValue(best.fc.hours, th.metric, eta, p.lat, ctx);
+      if (v === null || v === undefined) continue;
+      const r = limitRatio(th.metric, v, th); if (r === null) continue;
+      any = true; worst = Math.max(worst, r);
+    }
+    const col = any ? `rgb(${gradeColor(Math.min(1.2, worst)).join(',')})` : null;
+    routeColorCache.set(ck, col); return col;
+  }
+  // playback: the ship advances along the route at ×100 (200 ms real = 20 s of voyage)
+  function stopPlay() { if (state.plan.play) { clearInterval(state.plan.play); state.plan.play = null; } const b = $('btnTimePlay'); b.classList.remove('on'); b.textContent = '▶ ×100'; }
+  function togglePlay() {
+    if (state.plan.play) { stopPlay(); return; }
+    const sum = state.plan.sum, c = planCfg(); if (!sum || !sum.done || !sum.ship || !(c.speedKn > 0)) return;
+    if (sum.ship.km >= sum.totalKm - 1e-6) map.setShipKm(0);
+    const b = $('btnTimePlay'); b.classList.add('on'); b.textContent = '❚❚ ×100';
+    state.plan.play = setInterval(() => {
+      const s = state.plan.sum; if (!s || !s.done || !s.ship) { stopPlay(); return; }
+      const nk = s.ship.km + c.speedKn * 1.852 * 20 / 3600;
+      if (nk >= s.totalKm) { map.setShipKm(s.totalKm); stopPlay(); } else map.setShipKm(nk);
+    }, 200);
+  }
   $('btnPlan').addEventListener('click', () => setPlanMode(!state.plan.on));
+  $('btnPlanClear').addEventListener('click', () => { stopPlay(); map.clearRoute(); });
   $('planDepart').addEventListener('change', () => {
     const el = $('planDepart'); const ms = fromLocalInput(el.value);
     if (ms === null) { el.classList.add('invalid'); toast(t('plan_depart_bad'), 'err'); return; }
-    el.classList.remove('invalid'); state.plan.depart = ms; el.value = toLocalInput(ms);
-    renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints();
+    setDepart(ms);
   });
-  $('planSpeed').addEventListener('input', () => { const v = Number($('planSpeed').value); if (v > 0) { state.plan.speedKn = v; renderPlan(); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); } });
+  document.querySelectorAll('#planPanel [data-step]').forEach((b) => b.addEventListener('click', () => {
+    const st = b.dataset.step; const base = planCfg().depart || Date.now();
+    setDepart(st === 'now' ? Math.ceil(Date.now() / 600e3) * 600e3 : base + Number(st) * 60e3);
+  }));
+  $('planSpeed').addEventListener('change', () => setSpeed(Number($('planSpeed').value)));
+  $('planSpeedMs').addEventListener('change', () => setSpeed(Number($('planSpeedMs').value) / KN_MS));
+  $('planSpeed').addEventListener('input', () => { const v = Number($('planSpeed').value); if (v > 0) $('planSpeedMs').value = (v * KN_MS).toFixed(1); });
+  $('planSpeedMs').addEventListener('input', () => { const v = Number($('planSpeedMs').value); if (v > 0) $('planSpeed').value = (v / KN_MS).toFixed(1); });
 
-  // ------------------------------------------------------------------ 24 h forecast time bar (bottom-left)
+  // ------------------------------------------------------------------ time bar (bottom-left): +24 h offset, or the ship's clock on a laid route
+  function routeMode() { const s = state.plan.sum, c = planCfg(); return Boolean(state.plan.on && s && s.done && s.ship && c.depart && c.speedKn > 0); }
   function renderTimebar() {
-    const eta = planEta(); const bar = $('timebar');
-    bar.classList.toggle('shifted', isShifted());
-    $('timeRange').disabled = eta !== null;
+    const bar = $('timebar'), rng = $('timeRange'), eta = planEta(), rm = routeMode();
+    bar.classList.toggle('shifted', isShifted()); bar.classList.toggle('route', rm);
+    $('btnTimePlay').hidden = !rm;
+    rng.disabled = Boolean(state.plan.on && !rm);
+    if (rm) {
+      const s = state.plan.sum, c = planCfg(); const durMin = Math.max(1, Math.ceil((s.totalKm / (c.speedKn * 1.852)) * 60));
+      rng.max = String(durMin); rng.step = '1'; rng.value = String(Math.round((s.ship.km / (c.speedKn * 1.852)) * 60));
+      $('timeVal').textContent = `${t('plan_ship')} · ${fmtDay(eta)} ${fmtTime(eta)}`;
+      $('timeTicks').innerHTML = [0, 0.25, 0.5, 0.75, 1].map((f) => `<span>${fmtClock(c.depart + f * durMin * 60e3)}</span>`).join('');
+      return;
+    }
+    if (!state.plan.on) stopPlay();
+    rng.max = '1440'; rng.step = '10'; rng.value = String(Math.round(state.timeShift / 60e3));
+    $('timeTicks').innerHTML = ['0', '+6H', '+12H', '+18H', '+24H'].map((x) => `<span>${x}</span>`).join('');
     if (eta !== null) { $('timeVal').textContent = `${t('plan_ship')} · ${fmtDay(eta)} ${fmtTime(eta)}`; return; }
     const m = Math.round(state.timeShift / 60e3);
     $('timeVal').textContent = m ? `+${Math.floor(m / 60)}:${pad2(m % 60)} · ${fmtTime(Date.now() + state.timeShift)}` : t('time_now');
   }
   function setTimeShift(min) { state.timeShift = Math.max(0, Math.min(1440, min)) * 60e3; $('timeRange').value = String(Math.round(state.timeShift / 60e3)); renderTimebar(); renderSelected(); renderMapStates(); renderPoints(); }
-  $('timeRange').addEventListener('input', () => setTimeShift(Number($('timeRange').value)));
+  $('timeRange').addEventListener('input', () => { const v = Number($('timeRange').value); if (routeMode()) { stopPlay(); map.setShipKm((v / 60) * planCfg().speedKn * 1.852); } else setTimeShift(v); });
   $('btnTimeNow').addEventListener('click', () => setTimeShift(0));
+  $('btnTimePlay').addEventListener('click', togglePlay);
 
   // ------------------------------------------------------------------ layout
   function applyLayout() {
@@ -1133,12 +1237,15 @@
         tag.style.left = `${ll.px + 14}px`; tag.style.top = `${ll.py + 14}px`;
       },
       onLeave: () => { $('cursorTag').hidden = true; },
-      onRuler: onRoute,
+      onMeasure: renderRuler,
+      onRoute,
       loadData: (dataset, res) => window.bridge.loadMapData(dataset, res),
       onLod: () => renderMapStates(),
       onGrid: (step) => { const m = Math.round(step * 60); $('gridText').textContent = step >= 1 ? `${step}°` : `${m}'`; renderMapStates(); }
     });
     map.setProjection(state.s.projection);
+    map.setRouteColor(routeColorAt);
+    if (state.s.plan.pts && state.s.plan.pts.length >= 2) map.setRoute(state.s.plan.pts, 0); // the planned route survives restarts
     applyLayout();
     map.loadSeaMask().then(applyLayers, applyLayers);
     window.bridge.loadMapData('bathy').then((grid) => { WA.bathy.load(grid); evaluateAlarms(); renderAll(); }).catch((e) => console.error('bathy load failed', e));

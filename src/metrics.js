@@ -99,6 +99,7 @@
     { id: 'd_advFog', label: 'Advection-fog probability', group: 'Derived (maritime)', kind: 'pct', def: true, threshold: true, icon: 'fog', needs: ['waterTemperature', 'dewPointTemperature', 'windSpeed', 'humidity'] },
     { id: 'd_steepness', label: 'Wave steepness (Hs/L)', group: 'Derived (maritime)', kind: 'steep', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod'] },
     { id: 'd_seaHazard', label: 'Sea-state hazard index', group: 'Derived (maritime)', kind: 'pct', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod', 'windSpeed', 'windDirection', 'currentSpeed', 'currentDirection', 'swellHeight', 'swellDirection', 'windWaveHeight', 'windWaveDirection'] },
+    { id: 'd_waveEnergy', label: 'Wave energy (per m²)', group: 'Derived (maritime)', kind: 'energy', def: true, threshold: true, icon: 'wave', needs: ['waveHeight', 'wavePeriod'] },
     { id: 'd_fetchHs', label: 'Fetch-growth wave estimate', group: 'Derived (maritime)', kind: 'length', def: false, threshold: true, icon: 'wave', needs: ['windSpeed', 'windDirection', 'waveHeight'] }
   ];
   // Short uppercase labels for the bottom metric strip
@@ -106,7 +107,7 @@
     swellHeight: 'SWELL', swellPeriod: 'SWELL TP', swellDirection: 'SWELL DIR', windWaveHeight: 'WIND WAVE', pressure: 'PRESSURE', airTemperature: 'AIR TEMP',
     waterTemperature: 'WATER', dewPointTemperature: 'DEW POINT', humidity: 'HUMIDITY', cloudCover: 'CLOUD', visibility: 'VISIBILITY', precipitation: 'PRECIP',
     currentSpeed: 'CURRENT', currentDirection: 'CURRENT DIR', d_beaufort: 'BEAUFORT', d_seaState: 'SEA STATE', d_cloudCondition: 'SKY', d_airCondition: 'AIR COND',
-    d_pressureTendency: 'P TREND 3H', d_crossSea: 'CROSS SEA', d_fogRisk: 'FOG RISK', d_gustFactor: 'GUST FACTOR', d_icing: 'ICING', d_advFog: 'ADV FOG', d_steepness: 'STEEPNESS', d_seaHazard: 'SEA HAZARD', d_fetchHs: 'FETCH HS' };
+    d_pressureTendency: 'P TREND 3H', d_crossSea: 'CROSS SEA', d_fogRisk: 'FOG RISK', d_gustFactor: 'GUST FACTOR', d_icing: 'ICING', d_advFog: 'ADV FOG', d_steepness: 'STEEPNESS', d_seaHazard: 'SEA HAZARD', d_fetchHs: 'FETCH HS', d_waveEnergy: 'WAVE ENERGY' };
 
   const byId = {};
   METRICS.forEach((m) => { byId[m.id] = m; });

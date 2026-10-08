@@ -23,6 +23,7 @@
     ratio: { x: { label: '×', f: (v) => v, inv: (v) => v } },
     icing: { cmh: { label: 'cm/h', f: (v) => v, inv: (v) => v } },
     steep: { pct: { label: '%', f: (v) => v, inv: (v) => v } },
+    energy: { jm2: { label: 'J/m²', f: (v) => v, inv: (v) => v } },
     text: { t: { label: '', f: (v) => v, inv: (v) => v } }
   };
   const DEFAULT_UNITS = { speed: 'kn', length: 'm', depth: 'm', temp: 'c', vis: 'nm' };
@@ -34,7 +35,7 @@
   }
   function decimals(kind, value) {
     if (kind === 'pressure') return 1;
-    if (kind === 'pct' || kind === 'dir' || kind === 'factor') return 0;
+    if (kind === 'pct' || kind === 'dir' || kind === 'factor' || kind === 'energy') return 0;
     if (kind === 'temp' || kind === 'period' || kind === 'ptend' || kind === 'ratio' || kind === 'icing' || kind === 'steep') return 1;
     if (kind === 'vis') return Math.abs(value) < 10 ? 1 : 0;
     return Math.abs(value) < 10 ? 1 : 0;
@@ -163,6 +164,18 @@
     return { p, excess, level };
   }
   // Numeric value of a thresholdable derived metric (alarm engine + cards)
+  // ---------- wave energy ----------
+  // Mean energy of a random sea per m² of surface (kinetic + potential): E = ρ g Hs² / 16 (J/m²), ρ = 1025 kg/m³ sea water.
+  // Energy flux per metre of wave crest (deep water): P = ρ g² Hs² Te / (64 π) (W/m); Te taken as the reported wave period.
+  const RHO_SEA = 1025;
+  function waveEnergy(v) {
+    const hs = v && v.waveHeight; if (hs === null || hs === undefined || !(hs >= 0)) return null;
+    const te = v.wavePeriod;
+    const e = RHO_SEA * 9.80665 * hs * hs / 16;
+    const p = te > 0 ? RHO_SEA * 9.80665 * 9.80665 * hs * hs * te / (64 * Math.PI) : null;
+    return { e, p };
+  }
+
   // ---------- sea-state hazard ----------
   const G = 9.80665;
   // Deep-water wavelength L = gT²/2π and steepness Hs/L. Classes: < 1:40 gentle, 1:40–1:25 moderate, 1:25–1:18 steep, > 1:18 breaking crests.
@@ -240,12 +253,13 @@
 
   function derivedValue(id, v, lat) {
     if (id === 'd_steepness') { const r = steepness(v); return r ? r.s * 100 : null; }
+    if (id === 'd_waveEnergy') { const r = waveEnergy(v); return r ? r.e : null; }
     if (id === 'd_icing') { const r = icing(v, lat); return r ? r.rate : null; }
     if (id === 'd_advFog') { const r = advectionFog(v); return r ? r.p : null; }
     if (id === 'd_gustFactor') return v && v.windSpeed && v.gust ? v.gust / Math.max(0.5, v.windSpeed) : null;
     return null;
   }
-  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'], d_steepness: ['waveHeight', 'wavePeriod'] };
+  const DERIVED_NEEDS = { d_icing: ['airTemperature', 'waterTemperature', 'windSpeed'], d_advFog: ['dewPointTemperature', 'waterTemperature', 'windSpeed', 'humidity'], d_gustFactor: ['windSpeed', 'gust'], d_steepness: ['waveHeight', 'wavePeriod'], d_waveEnergy: ['waveHeight', 'wavePeriod'] };
 
   // ---------- coordinate parsing (WGS84 decimal, DDM or DMS) ----------
   function parseCoordPart(str, isLat) {
@@ -291,5 +305,5 @@
     return `${String(d).padStart(3, '0')}°${m.toFixed(1).padStart(4, '0')}'${lon >= 0 ? 'E' : 'W'}`;
   }
 
-  WA.units = { UNITS, DEFAULT_UNITS, unitFor, fmt, compass, beaufort, seaState, cloudCondition, airCondition, fogRisk, crossSea, icing, advectionFog, derivedValue, DERIVED_NEEDS, parseCoords, fmtLat, fmtLon, WMO, steepness, fetchGrowth, windPersistence, fetchEstimate, seaHazard, SERIES_DERIVED };
+  WA.units = { UNITS, DEFAULT_UNITS, unitFor, fmt, compass, beaufort, seaState, cloudCondition, airCondition, fogRisk, crossSea, icing, advectionFog, derivedValue, DERIVED_NEEDS, parseCoords, fmtLat, fmtLon, WMO, steepness, fetchGrowth, windPersistence, fetchEstimate, seaHazard, SERIES_DERIVED, waveEnergy };
 })();
