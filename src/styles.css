@@ -200,6 +200,8 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .plan-panel .pstep button { flex: 1; border: 1px solid var(--line-2); background: transparent; color: var(--text-3); font: 9px var(--mono); letter-spacing: .06em; padding: 3px 0; cursor: pointer; }
 .plan-panel .pstep button:hover { border-color: var(--warn); color: var(--text); }
 .plan-panel .pclear { margin-top: 8px; width: 100%; }
+.plan-panel .pwx { margin-top: 6px; font-size: 9px; letter-spacing: .1em; color: var(--ok); text-transform: uppercase; }
+.plan-panel .pwx.err { color: var(--crit); }
 .plan-panel .pl label { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: .12em; color: var(--text-4); }
 .plan-panel .pl input { background: rgba(255, 255, 255, .04); border: 1px solid var(--line-2); color: var(--text); font: 11px var(--mono); padding: 4px 6px; color-scheme: dark; }
 .plan-panel .pl input:focus { outline: none; border-color: var(--warn); }

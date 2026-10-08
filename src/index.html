@@ -77,7 +77,7 @@
           <span id="coordReadout" hidden></span><span id="gridText" hidden></span><span id="lodText" hidden></span>
         </div>
         <div class="timebar" id="timebar">
-          <div class="tb-head"><span data-i18n="time_title">FORECAST TIME</span><span class="tb-val" id="timeVal">NOW</span><button class="tb-now" id="btnTimeNow" type="button" data-i18n="time_now">NOW</button><button class="tb-now tb-play" id="btnTimePlay" type="button" hidden>▶ ×100</button></div>
+          <div class="tb-head"><span data-i18n="time_title">FORECAST TIME</span><span class="tb-val" id="timeVal">NOW</span><button class="tb-now" id="btnTimeNow" type="button" data-i18n="time_now">NOW</button><button class="tb-now tb-play" id="btnTimePlay" type="button" hidden>▶ ×1000</button></div>
           <input type="range" id="timeRange" min="0" max="1440" step="10" value="0" />
           <div class="tb-ticks" id="timeTicks"><span>0</span><span>+6H</span><span>+12H</span><span>+18H</span><span>+24H</span></div>
         </div>
@@ -97,6 +97,7 @@
             </div>
             <div id="planShip"></div>
             <div class="rhint" id="planHint"></div>
+            <div class="pwx" id="planWx" hidden></div>
             <button class="lbl-btn pclear" id="btnPlanClear" type="button" data-i18n="plan_clear" hidden>CLEAR ROUTE</button>
           </div>
           <div class="layer-btns">

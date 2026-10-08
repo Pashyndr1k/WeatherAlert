@@ -369,7 +369,7 @@
         for (let i = 0; i < n; i++) { const [lon0, lat0] = ip(i / n), [lon1, lat1] = ip((i + 1) / n); pieces.push({ a: { lon: lon0, lat: lat0 }, b: { lon: lon1, lat: lat1 }, km: acc + l.km * (i + 0.5) / n }); }
         acc += l.km;
       });
-      gRuler.selectAll('path.rseg').data(pieces).join('path').attr('class', 'rseg').attr('d', (s) => line(s.a, s.b)).attr('stroke-width', 2.2 / k)
+      gRuler.selectAll('path.rseg').data(pieces).join('path').attr('class', 'rseg').attr('d', (s) => line(s.a, s.b)).attr('stroke-width', 2.8 / k)
         .attr('stroke', (s) => (route.done && route.colorAt ? route.colorAt(s.km) : null) || null);
       const live = on && !route.done && route.cursor && route.pts.length ? [{ a: route.pts[route.pts.length - 1], b: route.cursor }] : [];
       gRuler.selectAll('path.rlive').data(live).join('path').attr('class', 'rlive').attr('d', (s) => line(s.a, s.b)).attr('stroke-width', 1.4 / k).attr('stroke-dasharray', `${2 / k} ${3 / k}`);

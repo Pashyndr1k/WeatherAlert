@@ -35,7 +35,7 @@
     lastShown: {}, lastRefresh: null, quota: null, busy: false, hasKey: false, error: null, view: 'home', settingsDraft: null,
     crit: { open: false, snoozedUntil: 0, snoozedKeys: new Set(), raisedAt: null, shownKeys: new Set() },
     currents: { grid: null, fetchedAt: 0, busy: false }, ruler: { on: false, sum: null },
-    plan: { on: false, sum: null, fc: null, key: null, fetching: false, samples: [], samplesKey: null, play: null, focus: true }, timeShift: 0
+    plan: { on: false, sum: null, fc: null, key: null, fetching: false, samples: [], samplesKey: null, samplesStatus: null, samplesAt: 0, play: null, focus: true }, timeShift: 0
   };
   let map = null, refreshTimer = null, evalTimer = null;
 
@@ -1076,6 +1076,10 @@
     }
     $('planShip').innerHTML = rows.join('');
     $('planHint').textContent = !sum || !sum.points.length ? t('plan_hint') : sum.done ? t('plan_hint_done') : t('plan_hint_drawing');
+    const st = p.samplesStatus, wx = $('planWx');
+    wx.hidden = !(sum && sum.done) || !st;
+    wx.classList.toggle('err', Boolean(st && st.startsWith('err')));
+    wx.textContent = !st ? '' : st === 'loading' ? t('plan_wx_loading') : st === 'ok' ? t('plan_wx_ok', { n: p.samples.filter((s) => s.fc).length, t: fmtClock(p.samplesAt) }) : st === 'sg' ? t('plan_wx_sg') : t('plan_wx_err', { e: st.slice(4) });
     $('btnPlanClear').hidden = !(sum && sum.points.length);
   }
   // forecast for the ship's position: fetched when the position moves to another grid cell, cached per cell
@@ -1101,22 +1105,35 @@
   let routeFetchT = null;
   function ensureRouteSamples() {
     const sum = state.plan.sum;
-    if (!sum || !sum.done || sum.points.length < 2 || state.s.provider === 'stormglass') { state.plan.samples = []; state.plan.samplesKey = null; invalidateRouteColors(); map.setRouteColor(routeColorAt); return; }
+    if (!sum || !sum.done || sum.points.length < 2 || state.s.provider === 'stormglass') { state.plan.samples = []; state.plan.samplesKey = null; state.plan.samplesStatus = state.s.provider === 'stormglass' && sum && sum.done ? 'sg' : null; invalidateRouteColors(); map.setRouteColor(routeColorAt); renderPlan(); return; }
     const step = Math.max(8, sum.totalKm / 40), pts = [];
     for (let km = 0; km <= sum.totalKm + 1e-6; km += step) { const rp = map.routePoint(Math.min(km, sum.totalKm)); pts.push({ km: rp.km, lat: rp.lat, lon: rp.lon }); }
     const prec = Math.max(0.01, Number(state.s.coordPrecision) || 0.05);
     const key = pts.map((p) => `${Math.round(p.lat / prec)}|${Math.round(p.lon / prec)}`).join(';');
     if (key === state.plan.samplesKey) { invalidateRouteColors(); map.setRouteColor(routeColorAt); return; }
     clearTimeout(routeFetchT);
+    state.plan.samplesStatus = 'loading'; renderPlan();
     routeFetchT = setTimeout(async () => {
       state.plan.samplesKey = key;
       try {
         const res = await window.bridge.fetchWeather(pts.map((p, i) => ({ id: `rs${i}`, lat: p.lat, lon: p.lon })), { provider: state.s.provider, params: requestParams(), source: state.s.sgSource, hours: 72, precision: state.s.coordPrecision });
         if (state.plan.samplesKey !== key) return;
         state.plan.samples = pts.map((p, i) => ({ ...p, fc: res.find((r) => r.pointId === `rs${i}`) || null }));
-      } catch (e) { state.plan.samplesKey = null; state.plan.samples = []; }
-      invalidateRouteColors(); map.setRouteColor(routeColorAt);
+        state.plan.samplesStatus = 'ok'; state.plan.samplesAt = Date.now();
+      } catch (e) {
+        console.warn('route samples failed', e); state.plan.samplesKey = null; state.plan.samples = []; state.plan.samplesStatus = `err:${e.message || e}`;
+        setTimeout(() => { if (state.plan.sum && state.plan.sum.done) ensureRouteSamples(); }, 15000); // retry after a pause (rate limit, network)
+      }
+      invalidateRouteColors(); map.setRouteColor(routeColorAt); renderPlan();
     }, 600);
+  }
+  // Route palette: green while the worst limit is less than half approached, amber towards the limit, red beyond it.
+  // (Wider green band than the widget tint, so a calm passage reads as clearly green rather than amber.)
+  function routeGrade(r) {
+    const ok = [126, 224, 129], warn = [240, 178, 58], crit = [255, 107, 98];
+    const mix = (a, b, f) => a.map((x, i) => Math.round(x + (b[i] - x) * f));
+    const c = r <= 0.5 ? ok : r < 0.85 ? mix(ok, warn, (r - 0.5) / 0.35) : r < 1 ? mix(warn, crit, (r - 0.85) / 0.15) : crit;
+    return `rgb(${c.join(',')})`;
   }
   const routeColorCache = new Map();
   function invalidateRouteColors() { routeColorCache.clear(); }
@@ -1137,19 +1154,19 @@
       const r = limitRatio(th.metric, v, th); if (r === null) continue;
       any = true; worst = Math.max(worst, r);
     }
-    const col = any ? `rgb(${gradeColor(Math.min(1.2, worst)).join(',')})` : null;
+    const col = any ? routeGrade(Math.min(1.2, worst)) : null;
     routeColorCache.set(ck, col); return col;
   }
-  // playback: the ship advances along the route at ×100 (200 ms real = 20 s of voyage)
-  function stopPlay() { if (state.plan.play) { clearInterval(state.plan.play); state.plan.play = null; } const b = $('btnTimePlay'); b.classList.remove('on'); b.textContent = '▶ ×100'; }
+  // playback: the ship advances along the route at ×1000 (200 ms real = 200 s of voyage)
+  function stopPlay() { if (state.plan.play) { clearInterval(state.plan.play); state.plan.play = null; } const b = $('btnTimePlay'); b.classList.remove('on'); b.textContent = '▶ ×1000'; }
   function togglePlay() {
     if (state.plan.play) { stopPlay(); return; }
     const sum = state.plan.sum, c = planCfg(); if (!sum || !sum.done || !sum.ship || !(c.speedKn > 0)) return;
     if (sum.ship.km >= sum.totalKm - 1e-6) map.setShipKm(0);
-    const b = $('btnTimePlay'); b.classList.add('on'); b.textContent = '❚❚ ×100';
+    const b = $('btnTimePlay'); b.classList.add('on'); b.textContent = '❚❚ ×1000';
     state.plan.play = setInterval(() => {
       const s = state.plan.sum; if (!s || !s.done || !s.ship) { stopPlay(); return; }
-      const nk = s.ship.km + c.speedKn * 1.852 * 20 / 3600;
+      const nk = s.ship.km + c.speedKn * 1.852 * 200 / 3600;
       if (nk >= s.totalKm) { map.setShipKm(s.totalKm); stopPlay(); } else map.setShipKm(nk);
     }, 200);
   }
