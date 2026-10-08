@@ -240,10 +240,10 @@
     if (st) parts.push({ id: 'steep', score: 100 * c01((st.s - 0.025) / 0.03) * c01((st.hs - 0.5) / 1.0), info: st });
     if (has('currentSpeed') && has('currentDirection') && has('windDirection') && has('windSpeed')) {
       const windTo = (v.windDirection + 180) % 360; let ang = Math.abs(windTo - v.currentDirection) % 360; if (ang > 180) ang = 360 - ang;
-      if (ang >= 120) parts.push({ id: 'opposing', score: 100 * c01((ang - 120) / 60) * c01((v.currentSpeed - 0.2) / 0.6) * c01((v.windSpeed - 8) / 10), info: { angle: ang, cur: v.currentSpeed } });
+      if (ang >= 120) parts.push({ id: 'opposing', score: 100 * c01((ang - 120) / 60) * c01((v.currentSpeed - 0.2) / 0.6) * c01((v.windSpeed - 8) / 10), info: { angle: ang, cur: v.currentSpeed, wind: v.windSpeed } });
     }
     const cs = crossSea(v);
-    if (cs && cs.name !== 'No') parts.push({ id: 'cross', score: (cs.name === 'Yes' ? 60 : 30) * c01(Math.min(v.swellHeight || 0, v.windWaveHeight || 0) / 1.5) + (cs.name === 'Yes' ? 20 * c01((cs.angle - 60) / 60) : 0), info: cs });
+    if (cs && cs.name !== 'No') parts.push({ id: 'cross', score: (cs.name === 'Yes' ? 60 : 30) * c01(Math.min(v.swellHeight || 0, v.windWaveHeight || 0) / 1.5) + (cs.name === 'Yes' ? 20 * c01((cs.angle - 60) / 60) : 0), info: { ...cs, swell: v.swellHeight, wind: v.windWaveHeight } });
     if (ctx && ctx.depth !== null && ctx.depth !== undefined && ctx.depth > 0 && st) {
       const rel = ctx.depth / st.L, hb = v.waveHeight / ctx.depth; // depth/wavelength (< 0.5 = waves feel the bottom), Hs/depth (≥ 0.6 breaking)
       if (rel < 0.5) parts.push({ id: 'shoal', score: Math.max(100 * c01((0.5 - rel) / 0.4) * c01(v.waveHeight / 2), 100 * c01((hb - 0.3) / 0.3)), info: { depth: ctx.depth, rel, hb } });
@@ -252,7 +252,7 @@
     if (fe && fe.meanU >= 8 && fe.hs >= 1.5 && fe.hs - (v.waveHeight || 0) >= 0.3) parts.push({ id: 'fetch', score: 100 * c01((fe.hs - 1.5) / 2.5), info: fe });
     parts.sort((a, b) => b.score - a.score);
     const score = parts.length ? Math.round(parts[0].score) : 0;
-    return { score, cls: score < 25 ? 'low' : score < 50 ? 'moderate' : score < 75 ? 'high' : 'severe', parts: parts.filter((p) => p.score >= 10) };
+    return { score, cls: score < 25 ? 'low' : score < 50 ? 'moderate' : score < 75 ? 'high' : 'severe', parts: parts.filter((p) => p.score >= 1) };
   }
   // Derived metrics that need the whole series (and a context) rather than one instant's values
   const SERIES_DERIVED = {

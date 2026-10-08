@@ -202,6 +202,11 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 1px s
 .plan-panel .pclear { margin-top: 8px; width: 100%; }
 .plan-panel .pwx { margin-top: 6px; font-size: 9px; letter-spacing: .1em; color: var(--ok); text-transform: uppercase; }
 .plan-panel .pwx.err { color: var(--crit); }
+/* hazard card breakdown */
+.card .c-detail { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line-2); display: grid; gap: 3px; font-size: 9px; letter-spacing: .06em; color: var(--text-4); text-transform: uppercase; }
+.card .c-detail .hz-d { display: flex; justify-content: space-between; gap: 8px; }
+.card .c-detail .hz-d span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .c-detail b { color: var(--text-3); font-weight: 600; flex: none; }
 .plan-panel .pl label { display: flex; flex-direction: column; gap: 3px; font-size: 9px; letter-spacing: .12em; color: var(--text-4); }
 .plan-panel .pl input { background: rgba(255, 255, 255, .04); border: 1px solid var(--line-2); color: var(--text); font: 11px var(--mono); padding: 4px 6px; color-scheme: dark; }
 .plan-panel .pl input:focus { outline: none; border-color: var(--warn); }

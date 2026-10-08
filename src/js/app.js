@@ -407,7 +407,9 @@
         const r = U.seaHazard(fc.hours, viewTime(), ctxFor(p));
         if (!r) return V('—');
         const reason = r.parts.length ? r.parts.slice(0, 2).map((x) => hazardReason(x)).join(' · ') : (ctxFor(p).depth === null ? t('hz_nodepth') : t('hz_none'));
-        return V(r.score, '%', `${t(`hz_${r.cls}`)} · ${reason}`);
+        // breakdown: every mechanism that contributes, strongest first, with the values that drive it
+        const detail = r.parts.length ? `<div class="c-detail">${r.parts.map((x) => `<div class="hz-d"><span>${hazardDetail(x)}</span><b>${Math.round(x.score)} %</b></div>`).join('')}</div>` : '';
+        return V(r.score, '%', `${t(`hz_${r.cls}`)} · ${reason}`) + detail;
       }
       case 'd_fetchHs': {
         const r = U.fetchEstimate(fc.hours, viewTime(), ctxFor(p));
@@ -423,6 +425,16 @@
       }
       default: return '';
     }
+  }
+  // full line for the card breakdown: mechanism + the inputs behind its score
+  function hazardDetail(x) {
+    const i = x.info || {}; const H = (m) => { const f = fmtMetric('waveHeight', m); return `${f.text} ${f.unit}`; }; const W = (m) => { const f = fmtMetric('windSpeed', m); return `${f.text} ${f.unit}`; };
+    if (x.id === 'steep') return `${t('hz_steep')} 1:${i.ratio} · ${t(`steep_src_${i.src}`)} ${H(i.hs)} · TM ${i.T.toFixed(1)} s`;
+    if (x.id === 'opposing') return `${t('hz_opposing')} ${Math.round(i.angle)}° · ${(i.cur * 1.943844).toFixed(1)} kn · ${W(i.wind)}`;
+    if (x.id === 'cross') return `${t('hz_cross')} ${Math.round(i.angle)}° · ${t('steep_src_swell')} ${H(i.swell)} / ${t('steep_src_wind')} ${H(i.wind)}`;
+    if (x.id === 'shoal') return `${t('hz_shoal')} ${t('depth')} ${H(i.depth)} · d/L ${i.rel.toFixed(2)} · Hs/d ${i.hb.toFixed(2)}`;
+    if (x.id === 'fetch') return `${t('hz_fetch')} → ${H(i.hs)} · ${i.hours} h × ${Math.round(i.fetchKm)} km · ${W(i.meanU)}`;
+    return x.id;
   }
   // one short reason for a hazard component, e.g. "STEEP 1:19", "WIND vs CURRENT 160°", "SHOALING 14 M"
   function hazardReason(x) {
